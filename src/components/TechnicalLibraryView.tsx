@@ -100,7 +100,8 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
     (r): r is PlanTpl => r.kind === 'plantpl' && !r.deletedAt
   );
 
-  // Check initial selection
+  // Apply a selection received from navigation only. Record updates must not replace
+  // the guide the user is currently editing.
   useEffect(() => {
     if (initialSelectedGuideId) {
       const rec = state.records[initialSelectedGuideId];
@@ -112,7 +113,12 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
         setActiveTab('guides');
       }
     }
-  }, [initialSelectedGuideId, state.records]);
+  }, [initialSelectedGuideId]);
+
+  const closeActiveGuide = () => {
+    setActiveGuideId(null);
+    store.setSelectedGuide(null);
+  };
 
   // Current list based on active tab
   const currentItems = useMemo(() => {
@@ -259,7 +265,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
           <div className="flex items-center gap-2">
             {activeGuide && (
               <button
-                onClick={() => setActiveGuideId(null)}
+                onClick={closeActiveGuide}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-neutral-800 text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white mr-1 transition-colors cursor-pointer"
                 title="Volver al catálogo de guías"
               >
@@ -381,7 +387,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
             </div>
           </div>
 
-          <GuideEditor guide={activeGuide} onBack={() => setActiveGuideId(null)} />
+          <GuideEditor guide={activeGuide} onBack={closeActiveGuide} />
         </div>
       ) : (
         /* Two-column layout according to Chapter 3 of specification */
@@ -618,6 +624,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
                       onClick={() => {
                         if (activeTab === 'guides') {
                           setActiveGuideId(item.id);
+                          store.setSelectedGuide(item.id);
                         } else if (activeTab === 'interactive') {
                           setActiveInteractiveGuideId(item.id);
                         } else if (activeTab === 'scripts') {
