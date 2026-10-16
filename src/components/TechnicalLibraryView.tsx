@@ -376,7 +376,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
                 onClick={() => onOpenGuideModal(activeGuide)}
                 className="px-3 py-1.5 bg-slate-100 dark:bg-neutral-800 hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-200 rounded-lg font-medium transition-colors cursor-pointer"
               >
-                Propiedades de la Guía
+                Editar nombre y propiedades
               </button>
             </div>
           </div>
@@ -708,6 +708,20 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
                         )}
 
                         <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100">
+                          {activeTab === 'guides' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenGuideModal(item);
+                              }}
+                              className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                              title="Editar nombre y propiedades de la guía"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Editar</span>
+                            </button>
+                          )}
                           {activeTab === 'interactive' && (
                             <div className="flex items-center gap-1.5">
                               <button
