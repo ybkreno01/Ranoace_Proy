@@ -190,21 +190,39 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   const sections = project.plan?.sections || [];
 
-  // Guides in project (standalone project copies and guides linked to tasks or sections)
+  // Library guides are templates. Convert any legacy direct project reference into
+  // a private project copy before it can be opened in the editor.
+  useEffect(() => {
+    const legacyIds = new Set<string>([
+      ...projectTasks.map((task) => task.guideRef),
+      ...sections.map((section) => section.guideTplId),
+    ].filter((id): id is string => Boolean(id) && state.records[id!]?.kind === 'guide'));
+    if (!legacyIds.size) return;
+
+    const copies: Guide[] = [];
+    const copyIds = new Map<string, string>();
+    legacyIds.forEach((sourceId) => {
+      const source = state.records[sourceId] as Guide;
+      const existing = Object.values(state.records).find((record: any) => record.kind === 'pguide' && record.projectId === project.id && record.sourceId === sourceId) as Guide | undefined;
+      const copyId = existing?.id || `pguide-${project.id}-${sourceId}`;
+      copyIds.set(sourceId, copyId);
+      if (!existing) copies.push({ ...source, id: copyId, kind: 'pguide', name: `${source.name} (${project.name})`, projectId: project.id, sourceId, sourceVersion: source.version });
+    });
+    if (copies.length) store.putRecords(copies);
+    const updatedTasks = projectTasks.filter((task) => task.guideRef && copyIds.has(task.guideRef)).map((task) => ({ ...task, guideRef: copyIds.get(task.guideRef!) }));
+    if (updatedTasks.length) store.putRecords(updatedTasks);
+    const updatedSections = sections.map((section) => section.guideTplId && copyIds.has(section.guideTplId) ? { ...section, guideTplId: copyIds.get(section.guideTplId) } : section);
+    if (updatedSections.some((section, index) => section !== sections[index])) store.putRecord({ ...project, plan: { ...project.plan, sections: updatedSections } });
+  }, [project, projectTasks, sections, state.records]);
+
+  // A project exposes only its private guide copies; templates stay in Library.
   const projectGuides = useMemo(() => {
-    const taskGuideIds = new Set(
-      projectTasks.map((t) => t.guideRef).filter(Boolean) as string[]
-    );
-    const sectionGuideIds = new Set(
-      sections.map((s) => s.guideTplId).filter(Boolean) as string[]
-    );
     return Object.values(state.records).filter(
       (r: any) =>
         !r.deletedAt &&
-        ((r.kind === 'pguide' && r.projectId === project.id) ||
-          (r.kind === 'guide' && (taskGuideIds.has(r.id) || sectionGuideIds.has(r.id))))
+        r.kind === 'pguide' && r.projectId === project.id
     ) as Guide[];
-  }, [state.records, project.id, projectTasks, sections]);
+  }, [state.records, project.id]);
 
   const libraryGuides = useMemo(() => {
     return Object.values(state.records).filter(
@@ -800,35 +818,17 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
     showToast(`Guía "${g.name}" eliminada / desvinculada de este proyecto.`);
   };
 
-  // Link guide to this project (either as pguide copy or link directly)
-  const handleLinkGuideToProject = (sourceGuide: Guide, asCopy: boolean) => {
-    if (asCopy) {
-      const pGuideId = `pguide-${project.id}-${sourceGuide.id}-${Date.now().toString(36).slice(-4)}`;
-      store.putRecord({
-        ...sourceGuide,
-        id: pGuideId,
-        kind: 'pguide',
-        name: `${sourceGuide.name} (${project.name})`,
-        projectId: project.id,
-        sourceId: sourceGuide.id,
-        sourceVersion: sourceGuide.version,
-        updatedAt: new Date().toISOString(),
-      });
-      showToast(`Copia de guía creada para el proyecto.`);
-    } else {
-      const pGuideId = `pguide-${project.id}-${sourceGuide.id}`;
-      store.putRecord({
-        ...sourceGuide,
-        id: pGuideId,
-        kind: 'pguide',
-        name: sourceGuide.name,
-        projectId: project.id,
-        sourceId: sourceGuide.id,
-        sourceVersion: sourceGuide.version,
-        updatedAt: new Date().toISOString(),
-      });
-      showToast(`Guía vinculada al proyecto.`);
+  // Associating a template always creates a project-private copy.
+  const handleLinkGuideToProject = (sourceGuide: Guide) => {
+    const existing = Object.values(state.records).find((record: any) => record.kind === 'pguide' && record.projectId === project.id && record.sourceId === sourceGuide.id) as Guide | undefined;
+    if (existing) {
+      setSelectedGuideId(existing.id);
+      showToast('Esta plantilla ya tiene una copia en el proyecto.');
+      setIsLinkGuideModalOpen(false);
+      return;
     }
+    store.putRecord({ ...sourceGuide, id: `pguide-${project.id}-${sourceGuide.id}`, kind: 'pguide', name: `${sourceGuide.name} (${project.name})`, projectId: project.id, sourceId: sourceGuide.id, sourceVersion: sourceGuide.version });
+    showToast('Copia editable de la guía creada para el proyecto.');
     setIsLinkGuideModalOpen(false);
   };
 
@@ -4211,18 +4211,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        onClick={() => handleLinkGuideToProject(g, false)}
+                        onClick={() => handleLinkGuideToProject(g)}
                         className="px-2.5 py-1 text-xs font-semibold bg-blue-50 dark:bg-cyan-950/60 text-blue-600 dark:text-cyan-400 border border-blue-200 dark:border-cyan-800 rounded-lg hover:bg-blue-100"
-                        title="Vincular referencia"
+                        title="Crear copia editable para este proyecto"
                       >
-                        Vincular
-                      </button>
-                      <button
-                        onClick={() => handleLinkGuideToProject(g, true)}
-                        className="px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 rounded-lg hover:bg-slate-200"
-                        title="Crear copia editable específica para este proyecto"
-                      >
-                        Copiar
+                        Usar en proyecto
                       </button>
                     </div>
                   </div>

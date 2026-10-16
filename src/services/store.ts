@@ -279,7 +279,7 @@ class Store {
       ...record,
       updatedAt: new Date().toISOString(),
     };
-    this.state.records[record.id] = updated;
+    this.state.records = { ...this.state.records, [record.id]: updated };
     if (record.id === 'settings') {
       this.state.settings = updated as Settings;
     }
@@ -301,17 +301,19 @@ class Store {
 
   public putRecords(records: AnyRecord[], immediate = false) {
     const now = new Date().toISOString();
+    const nextRecords = { ...this.state.records };
     for (const r of records) {
       const updated = {
         ...r,
         updatedAt: now,
       };
-      this.state.records[r.id] = updated;
+      nextRecords[r.id] = updated;
       if (r.id === 'settings') {
         this.state.settings = updated as Settings;
       }
       this.pendingChanges.add(r.id);
     }
+    this.state.records = nextRecords;
 
     // Guaranteed immediate persistence to localStorage
     this.persistLocal();
