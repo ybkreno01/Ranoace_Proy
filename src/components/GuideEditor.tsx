@@ -979,31 +979,34 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                               </div>
                             )}
 
-                            {/* Block 3: Command with 1-click Direct Copy */}
+                            {/* Block 3: Multiline command with 1-click Direct Copy */}
                             {block.type === 'command' && (
-                              <div className="bg-slate-950 text-cyan-300 font-mono p-3 rounded-lg flex items-center justify-between border border-slate-800 gap-3">
-                                <code className="text-xs break-all select-all flex-1">{block.code}</code>
-                                <button
-                                  onClick={() => handleCopyText(block.code || '', block.id)}
-                                  className={`px-3 py-1 text-xs font-semibold rounded shrink-0 flex items-center gap-1.5 transition-colors ${
-                                    copiedBlockId === block.id
-                                      ? 'bg-emerald-600 text-white'
-                                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                                  }`}
-                                  title="Copiar comando al portapapeles"
-                                >
-                                  {copiedBlockId === block.id ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-white" />
-                                      <span>¡Copiado!</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-3.5 h-3.5" />
-                                      <span>Copiar</span>
-                                    </>
-                                  )}
-                                </button>
+                              <div className="bg-slate-950 text-cyan-300 font-mono p-3 rounded-lg border border-slate-800 space-y-2">
+                                <div className="flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                                  <span>Comando {block.lang ? `· ${block.lang}` : ''}</span>
+                                  <button
+                                    onClick={() => handleCopyText(block.code || '', block.id)}
+                                    className={`px-3 py-1 text-xs font-semibold rounded shrink-0 flex items-center gap-1.5 transition-colors ${
+                                      copiedBlockId === block.id
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                                    }`}
+                                    title="Copiar comando al portapapeles"
+                                  >
+                                    {copiedBlockId === block.id ? (
+                                      <>
+                                        <Check className="w-3.5 h-3.5 text-white" />
+                                        <span>¡Copiado!</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3.5 h-3.5" />
+                                        <span>Copiar</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                                <pre className="text-xs whitespace-pre-wrap break-words select-all overflow-x-auto">{block.code}</pre>
                               </div>
                             )}
 
@@ -1451,9 +1454,9 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
             {editingBlock.block.type === 'command' && (
               <div className="space-y-3">
                 <div>
-                  <label className="text-slate-700 dark:text-neutral-300 block mb-1 font-mono">Línea de Comando</label>
+                  <label className="text-slate-700 dark:text-neutral-300 block mb-1 font-mono">Comando o bloque de comandos</label>
                   <textarea
-                    rows={3}
+                    rows={6}
                     value={editingBlock.block.code || ''}
                     onChange={(e) =>
                       setEditingBlock({
