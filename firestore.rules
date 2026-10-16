@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny all documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.:]+$');
+    }
+
+    function isValidRecord(data, userId) {
+      return data.userId == userId
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && (
+          // Case 1: Standard record
+          (
+            data.keys().hasAll(['id', 'kind', 'userId', 'data', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'kind', 'userId', 'data', 'updatedAt', 'createdAt', 'isChunked'])
+            && data.kind is string && data.kind.size() > 0 && data.kind.size() <= 64
+            && data.data is string && data.data.size() <= 1048576
+            && data.updatedAt is string && data.updatedAt.size() <= 64
+            && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+          )
+          ||
+          // Case 2: Chunk part document
+          (
+            data.keys().hasAll(['id', 'userId', 'isChunkPart', 'parentId', 'index', 'chunkData', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'userId', 'isChunkPart', 'parentId', 'index', 'chunkData', 'updatedAt'])
+            && data.isChunkPart == true
+            && data.parentId is string && data.parentId.size() <= 128
+            && data.index is int && data.index >= 0 && data.index <= 100
+            && data.chunkData is string && data.chunkData.size() <= 1048576
+            && data.updatedAt is string && data.updatedAt.size() <= 64
+          )
+          ||
+          // Case 3: Chunked main header
+          (
+            data.keys().hasAll(['id', 'kind', 'userId', 'isChunked', 'totalChunks', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'kind', 'userId', 'isChunked', 'totalChunks', 'updatedAt', 'createdAt'])
+            && data.isChunked == true
+            && data.kind is string && data.kind.size() > 0 && data.kind.size() <= 64
+            && data.totalChunks is int && data.totalChunks > 0 && data.totalChunks <= 100
+            && data.updatedAt is string && data.updatedAt.size() <= 64
+            && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+          )
+        );
+    }
+
+    match /users/{userId}/records/{recordId} {
+      allow get: if isOwner(userId) && isValidId(recordId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(recordId) && isValidRecord(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidId(recordId) && isValidRecord(request.resource.data, userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId) && isValidId(recordId);
+    }
+  }
+}

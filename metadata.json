@@ -1,0 +1,6 @@
+{
+  "name": "Centro de Control de Ingeniería (CCI)",
+  "description": "Plataforma integral para gestión y seguimiento de proyectos de ingeniería, PoCs, biblioteca técnica, planes de trabajo ponderados, bitácora y respaldos en Google Drive y Firestore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

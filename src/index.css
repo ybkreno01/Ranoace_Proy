@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+
+  /* Tabular numbers for all statistics, metrics, tables and dates */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.4);
+}
+
+/* Print stylesheets for Letter format export */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .page-break {
+    page-break-before: always;
+    break-before: page;
+  }
+}

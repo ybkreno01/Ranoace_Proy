@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "Record": {
+      "title": "Record",
+      "description": "Unified document record representing projects, tasks, guides, scripts, troubleshooting, catalogs, notes, or settings.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the record",
+          "maxLength": 128
+        },
+        "kind": {
+          "type": "string",
+          "description": "Entity kind: project, task, guide, pguide, script, trouble, plantpl, note, file, client, channel, brand, contact, worktype, tag, hist, settings",
+          "maxLength": 64
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID",
+          "maxLength": 128
+        },
+        "data": {
+          "type": "string",
+          "description": "JSON payload containing entity attributes and relational data",
+          "maxLength": 1048576
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "kind", "userId", "data", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/records/{recordId}": {
+      "schema": "Record",
+      "description": "Collection of records owned by a specific authenticated user."
+    }
+  }
+}
