@@ -29,35 +29,35 @@ const COLUMNS: {
     id: 'Pendiente',
     label: 'Pendiente',
     lightHeader: 'border-slate-300 text-slate-700 bg-slate-100',
-    darkHeader: 'border-neutral-700 text-neutral-300 bg-neutral-800/60',
+    darkHeader: 'dark:border-neutral-700 dark:text-neutral-300 dark:bg-neutral-800/60',
     badge: 'bg-slate-200 dark:bg-neutral-800 text-slate-700 dark:text-neutral-300',
   },
   {
     id: 'En curso',
     label: 'En Curso',
     lightHeader: 'border-blue-400 text-blue-700 bg-blue-50',
-    darkHeader: 'border-blue-500/80 text-blue-400 bg-blue-950/40',
+    darkHeader: 'dark:border-blue-500/80 dark:text-blue-400 dark:bg-blue-950/40',
     badge: 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300',
   },
   {
     id: 'En espera',
     label: 'En Espera',
     lightHeader: 'border-amber-400 text-amber-700 bg-amber-50',
-    darkHeader: 'border-amber-500/80 text-amber-400 bg-amber-950/40',
+    darkHeader: 'dark:border-amber-500/80 dark:text-amber-400 dark:bg-amber-950/40',
     badge: 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300',
   },
   {
     id: 'En validación',
     label: 'En Validación',
     lightHeader: 'border-purple-400 text-purple-700 bg-purple-50',
-    darkHeader: 'border-purple-500/80 text-purple-400 bg-purple-950/40',
+    darkHeader: 'dark:border-purple-500/80 dark:text-purple-400 dark:bg-purple-950/40',
     badge: 'bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300',
   },
   {
     id: 'Completado',
     label: 'Completado',
     lightHeader: 'border-emerald-400 text-emerald-700 bg-emerald-50',
-    darkHeader: 'border-emerald-500/80 text-emerald-400 bg-emerald-950/40',
+    darkHeader: 'dark:border-emerald-500/80 dark:text-emerald-400 dark:bg-emerald-950/40',
     badge: 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300',
   },
 ];
@@ -103,6 +103,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenTaskModal }) => {
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState<string>('all');
+  const [showAllDone, setShowAllDone] = useState(false);
 
   const moveTask = (task: Task, newStatus: TaskStatus) => {
     if (task.status === newStatus) return;
@@ -115,7 +116,8 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenTaskModal }) => {
       return;
     }
 
-    const nowStr = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const nowStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const isCompleted = newStatus === 'Completado';
     store.putRecord({
       ...task,
@@ -263,7 +265,15 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenTaskModal }) => {
       {/* 5 Column Grid */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5 items-start min-h-[620px]">
         {COLUMNS.map((col) => {
-          const colTasks = filteredTasks.filter((t) => t.status === col.id);
+          const allColTasks = filteredTasks.filter((t) => t.status === col.id);
+          // Completado: por defecto solo los últimos 7 días para mantener el tablero accionable.
+          const doneCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+          const isRecentDone = (t: Task) =>
+            new Date(t.realEnd || t.updatedAt || 0).getTime() >= doneCutoff;
+          const hiddenDone =
+            col.id === 'Completado' && !showAllDone ? allColTasks.filter((t) => !isRecentDone(t)).length : 0;
+          const colTasks =
+            col.id === 'Completado' && !showAllDone ? allColTasks.filter(isRecentDone) : allColTasks;
           const isOver = dragOverColumn === col.id;
 
           return (
@@ -281,13 +291,13 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenTaskModal }) => {
               <div
                 className={`flex items-center justify-between p-2 rounded-lg mb-3 border text-xs font-semibold ${
                   col.lightHeader
-                } dark:${col.darkHeader}`}
+                } ${col.darkHeader}`}
               >
                 <span>{col.label}</span>
                 <span
                   className={`font-mono text-[11px] px-2 py-0.5 rounded-full font-bold ${col.badge}`}
                 >
-                  {colTasks.length}
+                  {allColTasks.length}
                 </span>
               </div>
 
@@ -295,7 +305,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenTaskModal }) => {
               <div className="space-y-2.5 flex-1 overflow-y-auto">
                 {colTasks.length === 0 ? (
                   <div className="py-10 text-center text-xs text-slate-400 dark:text-neutral-600 italic">
-                    Sin actividades
+                    {hiddenDone > 0 ? 'Sin cierres recientes' : 'Sin actividades'}
                   </div>
                 ) : (
                   colTasks.map((task) => {
@@ -388,6 +398,15 @@ export const KanbanView: React.FC<KanbanViewProps> = ({ onOpenTaskModal }) => {
                   })
                 )}
               </div>
+              {col.id === 'Completado' && (hiddenDone > 0 || showAllDone) && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllDone((v) => !v)}
+                  className="mt-3 w-full text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                >
+                  {showAllDone ? 'Ver solo últimos 7 días' : `Ver ${hiddenDone} anteriores`}
+                </button>
+              )}
             </div>
           );
         })}

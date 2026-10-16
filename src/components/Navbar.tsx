@@ -191,11 +191,29 @@ export const Navbar: React.FC<NavbarProps> = ({
         <button
           type="button"
           onClick={() => store.setActiveView('drive-backups')}
-          className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800/80 text-blue-700 dark:text-cyan-300 transition-colors cursor-pointer"
-          title={state.settings.lastDriveSync ? `Google Drive sincronizado automáticamente: ${new Date(state.settings.lastDriveSync).toLocaleTimeString()}` : 'Configurar o sincronizar Google Drive'}
+          className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+            state.driveStatus === 'expired' || (state.driveStatus === 'disconnected' && state.settings.lastDriveSync)
+              ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/50 border-amber-300 dark:border-amber-700/80 text-amber-800 dark:text-amber-300'
+              : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 border-blue-200 dark:border-blue-800/80 text-blue-700 dark:text-cyan-300'
+          }`}
+          title={
+            state.driveStatus === 'expired'
+              ? 'La autorización de Google Drive venció: los respaldos automáticos están detenidos. Haz clic para reconectar.'
+              : state.driveStatus === 'disconnected' && state.settings.lastDriveSync
+              ? 'Sin sesión de Google: los respaldos automáticos en Drive están detenidos.'
+              : state.settings.lastDriveSync
+              ? `Google Drive sincronizado automáticamente: ${new Date(state.settings.lastDriveSync).toLocaleTimeString()}`
+              : 'Configurar o sincronizar Google Drive'
+          }
         >
-          <Cloud className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
-          <span>Drive {state.settings.lastDriveSync ? 'Sincronizado' : 'Conectar'}</span>
+          <Cloud className="w-3.5 h-3.5" />
+          <span>
+            {state.driveStatus === 'expired'
+              ? 'Drive: reconectar'
+              : state.driveStatus === 'disconnected' && state.settings.lastDriveSync
+              ? 'Drive: sin sesión'
+              : `Drive ${state.settings.lastDriveSync ? 'Sincronizado' : 'Conectar'}`}
+          </span>
         </button>
 
         {/* Theme Toggle Button (Sun / Moon) matching Screenshot 1 */}

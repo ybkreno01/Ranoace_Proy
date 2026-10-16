@@ -1,13 +1,19 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, Check, GripVertical, Pencil, Plus, Target, Trash2, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, GripVertical, Pencil, Plus, Target, Trash2, X } from 'lucide-react';
 import { store } from '../services/store';
-import { DailyPlanItem } from '../types';
+import { DailyPlanItem, Task } from '../types';
+
+// Fecha local (YYYY-MM-DD). toISOString() usa UTC y adelanta el día después de las 18:00 en CDMX.
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const blank = (): Omit<DailyPlanItem, 'id' | 'kind' | 'createdAt' | 'updatedAt' | 'order'> => ({
   title: '',
   description: '',
   objective: '',
-  date: new Date().toISOString().slice(0, 10),
+  date: localToday(),
   done: false,
 });
 
@@ -21,6 +27,41 @@ export const DailyPlanningView: React.FC = () => {
   const [draft, setDraft] = useState(blank());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [quickTitle, setQuickTitle] = useState('');
+  const [showAllDue, setShowAllDue] = useState(false);
+
+  const today = localToday();
+  const projects = store.getProjects();
+  const dueTasks = useMemo(
+    () =>
+      store
+        .getAllTasks()
+        .filter((t: Task) => t.status !== 'Completado' && t.due && t.due <= today)
+        .sort((a: Task, b: Task) => (a.due || '').localeCompare(b.due || '')),
+    [state.records, today]
+  );
+
+  const completeTask = (task: Task) =>
+    store.putRecord({ ...task, status: 'Completado', progress: 100, realEnd: today });
+
+  const quickAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = quickTitle.trim();
+    if (!title) return;
+    const now = new Date().toISOString();
+    store.putRecord({
+      id: `daily-plan-${Date.now()}`,
+      kind: 'daily_plan',
+      title,
+      date: today,
+      done: false,
+      order: items.length,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setQuickTitle('');
+  };
 
   const reset = () => {
     setDraft(blank());
@@ -67,10 +108,51 @@ export const DailyPlanningView: React.FC = () => {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
         <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Planeación diaria</h2>
-        <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">Recordatorios personales independientes de los proyectos.</p>
+        <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">Tus pendientes personales y las tareas de proyecto que vencen hoy o ya vencieron.</p>
       </div>
 
-      <form onSubmit={save} className="rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
+      <form onSubmit={quickAdd} className="flex gap-2">
+        <input
+          value={quickTitle}
+          onChange={(e) => setQuickTitle(e.target.value)}
+          placeholder="Agregar pendiente para hoy y presionar Enter…"
+          aria-label="Agregar pendiente rápido"
+          className="flex-1 rounded-lg border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 text-sm text-slate-900 dark:text-white"
+        />
+        <button type="submit" className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"><Plus className="w-4 h-4" />Agregar</button>
+        <button type="button" onClick={() => setShowDetails((v) => !v)} className="rounded-lg border border-slate-300 dark:border-neutral-700 px-3 py-2 text-xs font-medium text-slate-600 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800">{showDetails ? 'Ocultar detalles' : 'Con detalles'}</button>
+      </form>
+
+      {dueTasks.length > 0 && (
+        <section className="rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-neutral-100">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            De tus proyectos: vencen hoy o ya vencieron <span className="font-mono text-xs text-slate-500">{dueTasks.length}</span>
+          </h3>
+          <ul className="divide-y divide-slate-100 dark:divide-neutral-800">
+            {(showAllDue ? dueTasks : dueTasks.slice(0, 5)).map((t: Task) => {
+              const proj = projects.find((p) => p.id === t.projectId);
+              return (
+                <li key={t.id} className="flex items-center gap-3 py-2 text-xs">
+                  <input type="checkbox" checked={false} onChange={() => completeTask(t)} aria-label={`Completar ${t.title}`} className="h-4 w-4 rounded border-slate-300 text-blue-600" />
+                  <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-neutral-100">{t.title}</span>
+                  {proj && (
+                    <button type="button" onClick={() => store.setActiveView('projects', proj.id)} className="max-w-[40%] truncate text-blue-600 hover:underline">{proj.name}</button>
+                  )}
+                  <span className={`font-mono ${t.due! < today ? 'text-rose-600' : 'text-slate-500'}`}>{t.due}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {dueTasks.length > 5 && (
+            <button type="button" onClick={() => setShowAllDue((v) => !v)} className="mt-2 text-xs font-semibold text-blue-600 hover:underline">
+              {showAllDue ? 'Ver solo las 5 más antiguas' : `Ver las ${dueTasks.length} tareas`}
+            </button>
+          )}
+        </section>
+      )}
+
+      {(showDetails || editingId) && <form onSubmit={save} className="rounded-xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-2xs space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-neutral-100">{editingId ? 'Editar pendiente' : 'Nuevo pendiente'}</h3>
           {editingId && <button type="button" onClick={reset} className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white"><X className="w-4 h-4" /></button>}
@@ -84,7 +166,7 @@ export const DailyPlanningView: React.FC = () => {
           <input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} className="rounded-lg border border-slate-300 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800 px-3 py-2 text-xs text-slate-900 dark:text-white" />
           <button className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"><Plus className="w-4 h-4" />{editingId ? 'Guardar' : 'Agregar'}</button>
         </div>
-      </form>
+      </form>}
 
       <div className="space-y-2">
         {items.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 dark:border-neutral-700 p-8 text-center text-xs text-slate-500">Agrega tus pendientes del día aquí.</div> : items.map((item, index) => (

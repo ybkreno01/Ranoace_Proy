@@ -443,5 +443,7 @@ export interface AppState {
   searchQuery: string;
   isSearchOpen: boolean;
   saveStatus: 'saved' | 'saving' | 'offline' | 'error';
+  /** Estado de la autorización de Google Drive: ok, vencida o sin sesión. */
+  driveStatus?: 'ok' | 'expired' | 'disconnected';
   lastSavedAt: string;
 }

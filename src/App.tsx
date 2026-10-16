@@ -38,6 +38,20 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(auth.currentUser));
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [loginError, setLoginError] = useState('');
+  // Modo local: permite usar la app sin iniciar sesión (datos solo en este navegador, sin Firestore ni Drive).
+  const [isLocalMode, setIsLocalMode] = useState(() => {
+    try {
+      return localStorage.getItem('cci_local_mode') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const enterLocalMode = () => {
+    try {
+      localStorage.setItem('cci_local_mode', '1');
+    } catch {}
+    setIsLocalMode(true);
+  };
 
   // Modals state
   const [projectModalState, setProjectModalState] = useState<{
@@ -111,10 +125,18 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => subscribeToAuth((user) => {
-    setIsAuthenticated(Boolean(user));
-    setIsAuthReady(true);
-  }), []);
+  useEffect(() => {
+    // Si Firebase Auth no responde (sin red), no dejar la pantalla en "Validando acceso…".
+    const fallback = setTimeout(() => setIsAuthReady(true), 4000);
+    const unsub = subscribeToAuth((user) => {
+      setIsAuthenticated(Boolean(user));
+      setIsAuthReady(true);
+    });
+    return () => {
+      clearTimeout(fallback);
+      unsub();
+    };
+  }, []);
 
   const handleSignIn = async () => {
     setIsSigningIn(true);
@@ -166,8 +188,28 @@ export default function App() {
   };
 
   // Clone project (RF-15)
+  // Las guías de proyecto (pguide) se duplican y las referencias de tareas se remapean al clon,
+  // para que el clon nunca edite ni apunte a guías/tareas del proyecto origen.
   const handleCloneProject = (sourceProject: Project) => {
-    const newId = `proj-${Math.random().toString(36).substring(2, 8)}`;
+    const rand = () => Math.random().toString(36).substring(2, 8);
+    const now = new Date().toISOString();
+    const newId = `proj-${rand()}`;
+
+    const sourceTasks = store.getProjectTasks(sourceProject.id);
+    const sourceGuides = Object.values(store.getState().records).filter(
+      (r: any) => r.kind === 'pguide' && r.projectId === sourceProject.id && !r.deletedAt
+    ) as Guide[];
+
+    const guideIdMap: Record<string, string> = {};
+    sourceGuides.forEach((g) => {
+      guideIdMap[g.id] = `pguide-${newId}-${rand()}`;
+    });
+    const taskIdMap: Record<string, string> = {};
+    sourceTasks.forEach((t) => {
+      taskIdMap[t.id] = `task-${newId}-${rand()}`;
+    });
+    const remapGuide = (id?: string) => (id && guideIdMap[id] ? guideIdMap[id] : id);
+
     const clonedProject: Project = {
       ...sourceProject,
       id: newId,
@@ -176,26 +218,46 @@ export default function App() {
       condition: 'Clonado de ' + sourceProject.name,
       criteria: (sourceProject.criteria || []).map((c) => ({ ...c, done: false })),
       closure: undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      plan: {
+        ...sourceProject.plan,
+        sections: (sourceProject.plan?.sections || []).map((s) => ({
+          ...s,
+          guideTplId: remapGuide(s.guideTplId),
+        })),
+      },
+      createdAt: now,
+      updatedAt: now,
     };
     store.putRecord(clonedProject);
 
+    sourceGuides.forEach((g) => {
+      store.putRecord({
+        ...g,
+        id: guideIdMap[g.id],
+        projectId: newId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
     // Duplicate project tasks as well and reset to 0% progress
-    const sourceTasks = store.getProjectTasks(sourceProject.id);
     sourceTasks.forEach((t) => {
-      const newTaskId = `task-${newId}-${Math.random().toString(36).substring(2, 8)}`;
       store.putRecord({
         ...t,
-        id: newTaskId,
+        id: taskIdMap[t.id],
         projectId: newId,
         status: 'Pendiente',
         progress: 0,
         realStart: undefined,
         realEnd: undefined,
+        guideRef: remapGuide(t.guideRef),
+        stepRef: t.stepRef
+          ? { ...t.stepRef, pguideId: remapGuide(t.stepRef.pguideId) as string }
+          : undefined,
+        deps: (t.deps || []).map((d: string) => taskIdMap[d] || d),
         checklist: (t.checklist || []).map((c: any) => ({ ...c, done: false })),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       });
     });
 
@@ -225,7 +287,7 @@ export default function App() {
     return <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-600">Validando acceso…</div>;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isLocalMode) {
     return (
       <main className="min-h-screen grid place-items-center bg-slate-50 p-6 text-center text-slate-800">
         <section className="max-w-sm rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
@@ -241,6 +303,16 @@ export default function App() {
             {isSigningIn ? 'Accediendo…' : 'Acceder con Google'}
           </button>
           {loginError && <p className="mt-3 text-sm text-red-600">{loginError}</p>}
+          <button
+            type="button"
+            onClick={enterLocalMode}
+            className="mt-3 w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Continuar sin conexión
+          </button>
+          <p className="mt-2 text-xs text-slate-500">
+            Solo local: tus datos quedan en este navegador, sin sincronizar con Firestore ni Drive. Puedes acceder con Google más tarde desde el menú superior.
+          </p>
         </section>
       </main>
     );

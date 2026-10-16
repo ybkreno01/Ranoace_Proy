@@ -158,10 +158,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   // Expanded sections state
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
-  const toggleSection = (secId: string) => {
+  const toggleSection = (secId: string, currentlyExpanded: boolean) => {
     setExpandedSections((prev) => ({
       ...prev,
-      [secId]: prev[secId] === undefined ? false : !prev[secId],
+      [secId]: !currentlyExpanded,
     }));
   };
 
@@ -2058,8 +2058,11 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   const acts = projectTasks
                     .filter((t) => t.sectionId === sec.id)
                     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-                  const isExpanded = expandedSections[sec.id] !== false;
                   const secCalc = calc.sections.find((s) => s.sectionId === sec.id);
+                  // Las etapas completadas arrancan colapsadas para enfocar el trabajo pendiente.
+                  const autoCollapsed = acts.length > 0 && (secCalc?.calculatedProgress ?? 0) >= 100;
+                  const isExpanded =
+                    expandedSections[sec.id] !== undefined ? expandedSections[sec.id] : !autoCollapsed;
 
                   return (
                     <div
@@ -2071,7 +2074,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                     >
                       {/* Section Bar - Dark Distinct Background as requested */}
                       <div
-                        onClick={() => toggleSection(sec.id)}
+                        onClick={() => toggleSection(sec.id, isExpanded)}
                         className="flex items-center justify-between p-3.5 bg-slate-900 hover:bg-slate-850 dark:bg-slate-950 dark:hover:bg-slate-900 text-white cursor-pointer select-none transition-colors border-b border-slate-800"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">

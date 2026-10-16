@@ -488,7 +488,10 @@ class Store {
   public async autoSyncToGoogleDrive(): Promise<boolean> {
     if (this.isDriveSyncing) return false;
     const token = await getAccessToken();
-    if (!token) return false;
+    if (!token) {
+      this.setDriveStatus('disconnected');
+      return false;
+    }
 
     try {
       this.isDriveSyncing = true;
@@ -503,14 +506,25 @@ class Store {
         lastDriveSync: new Date().toISOString(),
       };
       this.persistLocal();
+      this.state.driveStatus = 'ok';
       this.notify();
       return true;
     } catch (err) {
       console.warn('Auto-sync to Google Drive error:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/expirado|requiere permisos/i.test(msg)) {
+        this.setDriveStatus('expired');
+      }
       return false;
     } finally {
       this.isDriveSyncing = false;
     }
+  }
+
+  private setDriveStatus(status: 'ok' | 'expired' | 'disconnected') {
+    if (this.state.driveStatus === status) return;
+    this.state.driveStatus = status;
+    this.notify();
   }
 
   public flushSyncLocal() {
@@ -533,7 +547,10 @@ class Store {
   public async pullLatestFromGoogleDrive(force = false): Promise<{ updated: boolean; count: number }> {
     try {
       const token = await getAccessToken();
-      if (!token) return { updated: false, count: 0 };
+      if (!token) {
+        this.setDriveStatus('disconnected');
+        return { updated: false, count: 0 };
+      }
 
       const folder = await getOrCreateAppFolder();
       const latest = await getLatestBackupFromDrive(folder.id);
@@ -621,6 +638,10 @@ class Store {
       return { updated: false, count: 0 };
     } catch (err) {
       console.warn('pullLatestFromGoogleDrive error:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/expirado|requiere permisos/i.test(msg)) {
+        this.setDriveStatus('expired');
+      }
       return { updated: false, count: 0 };
     }
   }

@@ -16,6 +16,7 @@ import {
   onSnapshot,
   writeBatch,
   getDocFromServer,
+  getDoc,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { AnyRecord } from '../types';
@@ -248,8 +249,9 @@ export function subscribeToUserRecords(
       onRecords(recordsMap);
     },
     (error) => {
+      // No relanzar: una excepción dentro del callback de onSnapshot queda sin capturar.
+      console.error('Firestore listener error', collectionPath, error);
       if (onError) onError(error);
-      handleFirestoreError(error, OperationType.GET, collectionPath);
     }
   );
 }
@@ -383,7 +385,27 @@ export async function deleteRecordFromFirestore(userId: string, recordId: string
   const path = `users/${userId}/records/${recordId}`;
   try {
     const docRef = doc(db, 'users', userId, 'records', recordId);
-    await deleteDoc(docRef);
+    // Si es un registro fragmentado, eliminar también sus partes {id}__c{n}.
+    let totalChunks = 0;
+    try {
+      const snap = await getDoc(docRef);
+      const header = snap.exists() ? snap.data() : null;
+      if (header?.isChunked && typeof header.totalChunks === 'number') {
+        totalChunks = header.totalChunks;
+      }
+    } catch (readErr) {
+      console.warn(`No se pudo leer el encabezado de ${recordId} antes de borrar:`, readErr);
+    }
+    if (totalChunks > 0) {
+      const batch = writeBatch(db);
+      for (let i = 0; i < totalChunks; i++) {
+        batch.delete(doc(db, 'users', userId, 'records', `${recordId}__c${i}`));
+      }
+      batch.delete(docRef);
+      await batch.commit();
+    } else {
+      await deleteDoc(docRef);
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }

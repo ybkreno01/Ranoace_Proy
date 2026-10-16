@@ -7,8 +7,11 @@ import { BrandLogo } from './common/BrandLogo';
 export const MyWorkView: React.FC = () => {
   const allTasks = store.getAllTasks();
   const projects = store.getProjects();
-  const todayStr = new Date().toISOString().split('T')[0];
-  const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Fechas locales (toISOString usa UTC y adelanta el día después de las 18:00 en CDMX).
+  const toLocalYmd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const todayStr = toLocalYmd(new Date());
+  const in7Days = toLocalYmd(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
   const toggleTask = (task: Task) => {
     const isDone = task.status === 'Completado';
