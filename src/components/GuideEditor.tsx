@@ -585,6 +585,16 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
     setDraggedBlockInfo(null);
   };
 
+  const handleImageWidthChange = (sectionId: string, stepId: string, blockId: string, widthPct: number) => {
+    saveGuide(guide.sections.map((section) => section.id !== sectionId ? section : {
+      ...section,
+      steps: section.steps.map((step) => step.id !== stepId ? step : {
+        ...step,
+        blocks: step.blocks.map((block) => block.id === blockId ? { ...block, widthPct } : block),
+      }),
+    }));
+  };
+
   // Delete block
   const deleteBlock = (sectionId: string, stepId: string, blockId: string) => {
     const updatedSections = guide.sections.map((sec) => {
@@ -1132,6 +1142,7 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                                     caption={block.caption}
                                     widthPct={block.widthPct || 100}
                                     showDriveBadge={true}
+                                    onWidthChange={(widthPct) => handleImageWidthChange(section.id, step.id, block.id, widthPct)}
                                   />
                                 ) : (
                                   <div className="p-6 bg-slate-100 dark:bg-neutral-800/60 border border-dashed border-slate-300 dark:border-neutral-700 rounded-lg text-center space-y-2">

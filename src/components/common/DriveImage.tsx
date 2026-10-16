@@ -11,6 +11,7 @@ interface DriveImageProps {
   widthPct?: number;
   showDriveBadge?: boolean;
   driveFileId?: string;
+  onWidthChange?: (widthPct: number) => void;
 }
 
 export const DriveImage: React.FC<DriveImageProps> = ({
@@ -22,11 +23,14 @@ export const DriveImage: React.FC<DriveImageProps> = ({
   widthPct = 100,
   showDriveBadge = true,
   driveFileId,
+  onWidthChange,
 }) => {
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [loadError, setLoadError] = useState<boolean>(false);
 
   const isDrive =
@@ -91,7 +95,7 @@ export const DriveImage: React.FC<DriveImageProps> = ({
             alt={alt}
             onError={() => setLoadError(true)}
             className="rounded-lg border border-slate-200 dark:border-neutral-800 max-h-96 w-auto object-contain shadow-xs cursor-zoom-in"
-            onClick={() => { setZoom(1); setIsZoomed(true); }}
+            onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setIsZoomed(true); }}
           />
 
           {/* Drive Cloud Badge */}
@@ -106,12 +110,18 @@ export const DriveImage: React.FC<DriveImageProps> = ({
           <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/70 backdrop-blur-xs rounded-lg p-1">
             <button
               type="button"
-              onClick={() => { setZoom(1); setIsZoomed(true); }}
+              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); setIsZoomed(true); }}
               className="p-1 text-white hover:text-cyan-300 rounded cursor-pointer"
               title="Ampliar foto"
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
+            {onWidthChange && (
+              <>
+                <button type="button" onClick={() => onWidthChange(Math.max(25, widthPct - 5))} disabled={widthPct <= 25} className="p-1 text-white hover:text-cyan-300 disabled:opacity-40" title="Reducir tamaño en la guía"><Minus className="w-3.5 h-3.5" /></button>
+                <button type="button" onClick={() => onWidthChange(Math.min(100, widthPct + 5))} disabled={widthPct >= 100} className="p-1 text-white hover:text-cyan-300 disabled:opacity-40" title="Aumentar tamaño en la guía"><Plus className="w-3.5 h-3.5" /></button>
+              </>
+            )}
             {fileId && (
               <a
                 href={`https://drive.google.com/file/d/${fileId}/view`}
@@ -164,19 +174,26 @@ export const DriveImage: React.FC<DriveImageProps> = ({
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="max-h-[72vh] max-w-full overflow-auto rounded-lg" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="max-h-[72vh] max-w-full overflow-hidden rounded-lg cursor-grab active:cursor-grabbing"
+              onClick={(e) => e.stopPropagation()}
+              onWheel={(e) => { e.preventDefault(); setZoom((value) => Math.max(0.5, Math.min(3, value + (e.deltaY < 0 ? 0.15 : -0.15)))); }}
+              onPointerDown={(e) => { if (zoom > 1) { e.currentTarget.setPointerCapture(e.pointerId); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); } }}
+              onPointerMove={(e) => { if (dragStart) setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }); }}
+              onPointerUp={() => setDragStart(null)}
+            >
               <img
                 src={resolvedSrc}
                 alt={alt}
                 className="max-h-[72vh] max-w-full w-auto rounded-lg shadow-2xl object-contain origin-top-left"
-                style={{ transform: `scale(${zoom})` }}
+                style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
               />
             </div>
             <div className="mt-3 flex items-center gap-2 rounded-lg bg-white/15 p-1 text-white" onClick={(e) => e.stopPropagation()}>
               <button type="button" onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))} className="p-1.5 hover:text-cyan-300" title="Alejar imagen"><Minus className="w-4 h-4" /></button>
               <span className="min-w-12 text-center text-xs font-semibold">{Math.round(zoom * 100)}%</span>
               <button type="button" onClick={() => setZoom((value) => Math.min(3, value + 0.25))} className="p-1.5 hover:text-cyan-300" title="Acercar imagen"><Plus className="w-4 h-4" /></button>
-              <button type="button" onClick={() => setZoom(1)} className="px-2 text-xs hover:text-cyan-300">Restablecer</button>
+              <button type="button" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} className="px-2 text-xs hover:text-cyan-300">Restablecer</button>
             </div>
             <div className="mt-3 flex items-center gap-3 text-xs text-slate-300">
               {caption && <span>{caption}</span>}
