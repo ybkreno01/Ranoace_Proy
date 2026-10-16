@@ -24,6 +24,7 @@ import {
   ExternalLink,
   BookOpen,
   FileJson,
+  Printer,
 } from 'lucide-react';
 import { Guide, GuideSection, GuideStep, GuideBlock, ChecklistItem } from '../types';
 import { store } from '../services/store';
@@ -676,9 +677,9 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 guide-print">
       {/* Top Editor Utility Bar for Single Item JSON Export / Load */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs shadow-2xs">
+      <div className="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs shadow-2xs">
         <div className="flex items-center gap-2 text-slate-500 dark:text-neutral-400">
           <BookOpen className="w-4 h-4 text-amber-500 shrink-0" />
           <span className="font-semibold text-slate-800 dark:text-neutral-200 truncate">
@@ -707,6 +708,10 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
           >
             <Download className="w-3.5 h-3.5" />
             <span>Exportar Guía JSON</span>
+          </button>
+          <button type="button" onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-semibold transition-colors cursor-pointer" title="Imprimir guía o guardar como PDF">
+            <Printer className="w-3.5 h-3.5" />
+            <span>Imprimir</span>
           </button>
         </div>
 
@@ -1699,8 +1704,12 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-700 dark:text-neutral-300 block mb-1">Ancho en Pantalla (%)</label>
-                  <select
+                  <label className="text-slate-700 dark:text-neutral-300 block mb-1">Ancho en pantalla: {editingBlock.block.widthPct || 100}%</label>
+                  <input
+                    type="range"
+                    min={25}
+                    max={100}
+                    step={5}
                     value={editingBlock.block.widthPct || 100}
                     onChange={(e) =>
                       setEditingBlock({
@@ -1708,13 +1717,8 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                         block: { ...editingBlock.block, widthPct: Number(e.target.value) },
                       })
                     }
-                    className="w-full bg-slate-50 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded-lg px-2.5 py-2 text-slate-900 dark:text-neutral-200"
-                  >
-                    <option value={100}>100% (Ancho completo)</option>
-                    <option value={75}>75% (Mediano-Grande)</option>
-                    <option value={50}>50% (Medio)</option>
-                    <option value={25}>25% (Miniatura)</option>
-                  </select>
+                    className="w-full accent-blue-600"
+                  />
                 </div>
 
                 <div>

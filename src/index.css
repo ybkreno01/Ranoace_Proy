@@ -36,6 +36,7 @@
 
 /* Print stylesheets for Letter format export */
 @media print {
+  @page { size: letter; margin: 0.5in; }
   body {
     background: white !important;
     color: black !important;
@@ -50,4 +51,9 @@
     page-break-before: always;
     break-before: page;
   }
+  body * { visibility: hidden; }
+  .guide-print, .guide-print * { visibility: visible; }
+  .guide-print { position: absolute; inset: 0; width: 100%; color: black !important; }
+  .guide-print button { display: none !important; }
+  .guide-print .bg-slate-950 { background: #f8fafc !important; color: #111827 !important; border-color: #cbd5e1 !important; }
 }
