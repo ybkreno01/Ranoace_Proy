@@ -820,14 +820,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
 
   // Associating a template always creates a project-private copy.
   const handleLinkGuideToProject = (sourceGuide: Guide) => {
-    const existing = Object.values(state.records).find((record: any) => record.kind === 'pguide' && record.projectId === project.id && record.sourceId === sourceGuide.id) as Guide | undefined;
+    const existing = Object.values(state.records).find((record: any) => record.kind === 'pguide' && !record.deletedAt && record.projectId === project.id && record.sourceId === sourceGuide.id) as Guide | undefined;
     if (existing) {
       setSelectedGuideId(existing.id);
       showToast('Esta plantilla ya tiene una copia en el proyecto.');
       setIsLinkGuideModalOpen(false);
       return;
     }
-    store.putRecord({ ...sourceGuide, id: `pguide-${project.id}-${sourceGuide.id}`, kind: 'pguide', name: `${sourceGuide.name} (${project.name})`, projectId: project.id, sourceId: sourceGuide.id, sourceVersion: sourceGuide.version });
+    const projectGuide: Guide = { ...sourceGuide, id: `pguide-${project.id}-${sourceGuide.id}`, kind: 'pguide', name: `${sourceGuide.name} (${project.name})`, projectId: project.id, sourceId: sourceGuide.id, sourceVersion: sourceGuide.version };
+    store.putRecord(projectGuide);
+    setSelectedGuideId(projectGuide.id);
     showToast('Copia editable de la guía creada para el proyecto.');
     setIsLinkGuideModalOpen(false);
   };
