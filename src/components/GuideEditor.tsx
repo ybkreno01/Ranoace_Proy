@@ -52,6 +52,7 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
   const [activeStepId, setActiveStepId] = useState<string | null>(null);
   const [draggedSectionIndex, setDraggedSectionIndex] = useState<number | null>(null);
   const [draggedStepInfo, setDraggedStepInfo] = useState<{ sectionIdx: number; stepIdx: number } | null>(null);
+  const [draggedBlockInfo, setDraggedBlockInfo] = useState<{ sectionId: string; stepId: string; blockIdx: number } | null>(null);
   const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 
   // Hidden file input for uploading images directly into a step
@@ -564,6 +565,25 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
     saveGuide(updatedSections);
   };
 
+  const handleDropBlock = (sectionId: string, stepId: string, targetIdx: number) => {
+    if (!draggedBlockInfo || draggedBlockInfo.sectionId !== sectionId || draggedBlockInfo.stepId !== stepId || draggedBlockInfo.blockIdx === targetIdx) return;
+    const updatedSections = guide.sections.map((section) => {
+      if (section.id !== sectionId) return section;
+      return {
+        ...section,
+        steps: section.steps.map((step) => {
+          if (step.id !== stepId) return step;
+          const blocks = [...step.blocks];
+          const [moved] = blocks.splice(draggedBlockInfo.blockIdx, 1);
+          blocks.splice(targetIdx, 0, moved);
+          return { ...step, blocks };
+        }),
+      };
+    });
+    saveGuide(updatedSections);
+    setDraggedBlockInfo(null);
+  };
+
   // Delete block
   const deleteBlock = (sectionId: string, stepId: string, blockId: string) => {
     const updatedSections = guide.sections.map((sec) => {
@@ -925,11 +945,22 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                         step.blocks.map((block, bIdx) => (
                           <div
                             key={block.id}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => { e.preventDefault(); handleDropBlock(section.id, step.id, bIdx); }}
                             className="text-xs space-y-1.5 group/block p-2.5 rounded-lg border border-slate-100 dark:border-neutral-800/80 bg-slate-50/50 dark:bg-neutral-900/60 hover:border-cyan-500/30 transition-colors relative"
                           >
                             {/* Block header with label and block action buttons (Edit, Up, Down, Delete) */}
                             <div className="flex items-center justify-between gap-2 text-slate-500 dark:text-neutral-400 font-medium text-[11px] pb-1 border-b border-slate-100 dark:border-neutral-800/50">
                               <div className="flex items-center gap-1.5">
+                                <span
+                                  draggable
+                                  onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDraggedBlockInfo({ sectionId: section.id, stepId: step.id, blockIdx: bIdx }); }}
+                                  onDragEnd={() => setDraggedBlockInfo(null)}
+                                  className="cursor-grab active:cursor-grabbing text-slate-400"
+                                  title="Arrastra para reordenar este bloque"
+                                >
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </span>
                                 {block.type === 'checklist' && <CheckSquare className="w-3.5 h-3.5 text-cyan-500" />}
                                 {block.type === 'text' && <FileText className="w-3.5 h-3.5 text-slate-400" />}
                                 {block.type === 'command' && <Terminal className="w-3.5 h-3.5 text-emerald-500" />}

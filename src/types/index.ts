@@ -384,6 +384,20 @@ export interface Hist {
   deletedAt?: string | null;
 }
 
+export interface DailyPlanItem {
+  id: string;
+  kind: 'daily_plan';
+  title: string;
+  description?: string;
+  objective?: string;
+  date?: string;
+  done: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
 export interface Settings {
   id: 'settings';
   kind: 'settings';
@@ -416,6 +430,7 @@ export type AnyRecord =
   | ProjectFile
   | CatalogItem
   | Hist
+  | DailyPlanItem
   | Settings;
 
 export interface AppState {

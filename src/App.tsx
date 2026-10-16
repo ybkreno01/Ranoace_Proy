@@ -8,6 +8,7 @@ import { ProjectDetailView } from './components/ProjectDetailView';
 import { MyWorkView } from './components/MyWorkView';
 import { KanbanView } from './components/KanbanView';
 import { CalendarView } from './components/CalendarView';
+import { DailyPlanningView } from './components/DailyPlanningView';
 import { GanttView } from './components/GanttView';
 import { TechnicalLibraryView } from './components/TechnicalLibraryView';
 import { CatalogsView } from './components/CatalogsView';
@@ -313,6 +314,8 @@ export default function App() {
           )}
 
           {currentView === 'calendar' && <CalendarView />}
+
+          {currentView === 'daily-planning' && <DailyPlanningView />}
 
           {currentView === 'gantt' && <GanttView />}
 
