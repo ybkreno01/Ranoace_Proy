@@ -26,13 +26,17 @@ import { TroubleModal } from './components/modals/TroubleModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
 import { PlanTplModal } from './components/modals/PlanTplModal';
 import { Project, Task, Guide, Script, Trouble, PlanTpl } from './types';
-import { testConnection } from './services/firebase';
+import { auth, googleSignIn, subscribeToAuth, testConnection } from './services/firebase';
 
 export default function App() {
   const [, setTick] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(auth.currentUser));
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   // Modals state
   const [projectModalState, setProjectModalState] = useState<{
@@ -105,6 +109,23 @@ export default function App() {
       unsub();
     };
   }, []);
+
+  useEffect(() => subscribeToAuth((user) => {
+    setIsAuthenticated(Boolean(user));
+    setIsAuthReady(true);
+  }), []);
+
+  const handleSignIn = async () => {
+    setIsSigningIn(true);
+    setLoginError('');
+    try {
+      await googleSignIn();
+    } catch {
+      setLoginError('No se pudo iniciar sesión. Inténtalo de nuevo.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
 
   // Global Ctrl+K / Cmd+K hotkey
   useEffect(() => {
@@ -198,6 +219,31 @@ export default function App() {
   const selectedProject = state.selectedProjectId
     ? (state.records[state.selectedProjectId] as Project)
     : null;
+
+  if (!isAuthReady) {
+    return <div className="min-h-screen grid place-items-center bg-slate-50 text-slate-600">Validando acceso…</div>;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen grid place-items-center bg-slate-50 p-6 text-center text-slate-800">
+        <section className="max-w-sm rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl bg-blue-600 text-lg font-bold text-white">CC</div>
+          <h1 className="text-xl font-bold">Centro de Control</h1>
+          <p className="mt-2 text-sm text-slate-600">Accede con tu cuenta de Google para abrir tu espacio personal.</p>
+          <button
+            type="button"
+            onClick={handleSignIn}
+            disabled={isSigningIn}
+            className="mt-6 w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white disabled:opacity-60"
+          >
+            {isSigningIn ? 'Accediendo…' : 'Acceder con Google'}
+          </button>
+          {loginError && <p className="mt-3 text-sm text-red-600">{loginError}</p>}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-neutral-950 text-slate-800 dark:text-neutral-100 flex flex-col font-sans transition-colors duration-150">
