@@ -95,13 +95,23 @@ export const DailyPlanningView: React.FC = () => {
 
   const toggle = (item: DailyPlanItem) => store.putRecord({ ...item, done: !item.done });
 
+  // Dos listas: pendientes (principal) y terminadas (secundaria) para que no se mezclen.
+  const pendingItems = items.filter((item) => !item.done);
+  const doneItems = items
+    .filter((item) => item.done)
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+
   const drop = (targetIndex: number) => {
     if (draggedIndex === null || draggedIndex === targetIndex) return;
-    const reordered = [...items];
+    const reordered = [...pendingItems];
     const [moved] = reordered.splice(draggedIndex, 1);
     reordered.splice(targetIndex, 0, moved);
-    store.putRecords(reordered.map((item, order) => ({ ...item, order })));
+    store.putRecords([...reordered, ...items.filter((item) => item.done)].map((item, order) => ({ ...item, order })));
     setDraggedIndex(null);
+  };
+
+  const clearDone = () => {
+    doneItems.forEach((item) => store.deleteRecord(item.id, true));
   };
 
   return (
@@ -168,25 +178,61 @@ export const DailyPlanningView: React.FC = () => {
         </div>
       </form>}
 
-      <div className="space-y-2">
-        {items.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 dark:border-neutral-700 p-8 text-center text-xs text-slate-500">Agrega tus pendientes del día aquí.</div> : items.map((item, index) => (
-          <div key={item.id} onDragOver={(e) => e.preventDefault()} onDrop={() => drop(index)} className={`flex gap-3 rounded-xl border bg-white dark:bg-neutral-900 p-4 shadow-2xs ${draggedIndex !== null && draggedIndex !== index ? 'border-blue-300' : 'border-slate-200 dark:border-neutral-800'}`}>
-            <span draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDraggedIndex(index); }} onDragEnd={() => setDraggedIndex(null)} title="Arrastra para cambiar la posición" className="cursor-grab active:cursor-grabbing pt-1 text-slate-400"><GripVertical className="w-4 h-4" /></span>
-            <input type="checkbox" checked={item.done} onChange={() => toggle(item)} className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600" />
-            <div className="min-w-0 flex-1">
-              <h3 className={`text-sm font-semibold ${item.done ? 'line-through text-slate-400' : 'text-slate-900 dark:text-white'}`}>{item.title}</h3>
-              {item.description && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600 dark:text-neutral-300">{item.description}</p>}
-              <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                {item.date && <span className="inline-flex items-center gap-1 text-slate-500"><CalendarDays className="w-3.5 h-3.5" />{item.date}</span>}
-                {item.objective && <span className="inline-flex items-center gap-1 text-blue-700 dark:text-cyan-300"><Target className="w-3.5 h-3.5" />{item.objective}</span>}
+      <div className="grid gap-5 lg:grid-cols-3 items-start">
+        <section aria-label="Pendientes" className="lg:col-span-2 space-y-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-neutral-100">
+            Pendientes <span className="font-mono text-xs text-slate-500">{pendingItems.length}</span>
+          </h3>
+          {pendingItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 dark:border-neutral-700 p-8 text-center text-xs text-slate-500">
+              {doneItems.length > 0 ? 'No tienes pendientes. Todo lo terminado está a la derecha.' : 'Agrega tus pendientes del día aquí.'}
+            </div>
+          ) : (
+            pendingItems.map((item, index) => (
+              <div key={item.id} onDragOver={(e) => e.preventDefault()} onDrop={() => drop(index)} className={`flex gap-3 rounded-xl border bg-white dark:bg-neutral-900 p-4 shadow-2xs ${draggedIndex !== null && draggedIndex !== index ? 'border-blue-300' : 'border-slate-200 dark:border-neutral-800'}`}>
+                <span draggable onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDraggedIndex(index); }} onDragEnd={() => setDraggedIndex(null)} title="Arrastra para cambiar la posición" className="cursor-grab active:cursor-grabbing pt-1 text-slate-400"><GripVertical className="w-4 h-4" /></span>
+                <input type="checkbox" checked={false} onChange={() => toggle(item)} aria-label={`Marcar como terminado: ${item.title}`} className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600" />
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{item.title}</h3>
+                  {item.description && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600 dark:text-neutral-300">{item.description}</p>}
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    {item.date && <span className={`inline-flex items-center gap-1 ${item.date < today ? 'text-rose-600' : 'text-slate-500'}`}><CalendarDays className="w-3.5 h-3.5" />{item.date}</span>}
+                    {item.objective && <span className="inline-flex items-center gap-1 text-blue-700 dark:text-cyan-300"><Target className="w-3.5 h-3.5" />{item.objective}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => edit(item)} title="Editar pendiente" className="p-1.5 text-slate-400 hover:text-blue-600"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => store.deleteRecord(item.id, true)} title="Enviar a papelera" className="p-1.5 text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-1">
-              <button onClick={() => edit(item)} title="Editar pendiente" className="p-1.5 text-slate-400 hover:text-blue-600"><Pencil className="w-4 h-4" /></button>
-              <button onClick={() => store.deleteRecord(item.id, true)} title="Enviar a papelera" className="p-1.5 text-slate-400 hover:text-rose-600"><Trash2 className="w-4 h-4" /></button>
-            </div>
+            ))
+          )}
+        </section>
+
+        <aside aria-label="Terminadas" className="space-y-2 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/40 dark:bg-emerald-950/20 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+              Terminadas <span className="font-mono text-xs">{doneItems.length}</span>
+            </h3>
+            {doneItems.length > 0 && (
+              <button type="button" onClick={clearDone} className="text-[11px] font-medium text-slate-500 hover:text-rose-600">Enviar a papelera</button>
+            )}
           </div>
-        ))}
+          {doneItems.length === 0 ? (
+            <p className="py-4 text-center text-xs text-slate-500">Lo que termines aparecerá aquí.</p>
+          ) : (
+            doneItems.map((item) => (
+              <div key={item.id} className="flex items-start gap-2 rounded-lg border border-emerald-100 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900 p-2.5">
+                <input type="checkbox" checked onChange={() => toggle(item)} aria-label={`Regresar a pendientes: ${item.title}`} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-slate-500 line-through">{item.title}</p>
+                  {item.date && <p className="font-mono text-[10px] text-slate-400">{item.date}</p>}
+                </div>
+                <button onClick={() => store.deleteRecord(item.id, true)} title="Enviar a papelera" className="p-1 text-slate-400 hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
+              </div>
+            ))
+          )}
+        </aside>
       </div>
     </div>
   );

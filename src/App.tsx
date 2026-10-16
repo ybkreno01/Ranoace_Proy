@@ -391,7 +391,16 @@ export default function App() {
 
           {currentView === 'gantt' && <GanttView />}
 
+          {currentView === 'library' && planTplModalState.isOpen && (
+            <PlanTplModal
+              isOpen={planTplModalState.isOpen}
+              plantpl={planTplModalState.plantpl}
+              onClose={() => setPlanTplModalState({ isOpen: false, plantpl: null })}
+            />
+          )}
+
           {currentView === 'library' && (
+            <div className={planTplModalState.isOpen ? 'hidden' : ''}>
             <TechnicalLibraryView
               onOpenGuideModal={(g) => setGuideModalState({ isOpen: true, guide: g })}
               onOpenScriptModal={(s) => setScriptModalState({ isOpen: true, script: s })}
@@ -399,6 +408,7 @@ export default function App() {
               onOpenPlanTplModal={(tpl) => setPlanTplModalState({ isOpen: true, plantpl: tpl })}
               initialSelectedGuideId={state.selectedGuideId}
             />
+            </div>
           )}
 
           {currentView === 'catalogs' && <CatalogsView />}
@@ -466,13 +476,6 @@ export default function App() {
         isOpen={troubleModalState.isOpen}
         trouble={troubleModalState.trouble}
         onClose={() => setTroubleModalState({ isOpen: false, trouble: null })}
-      />
-
-      {/* Create / Edit Plan Template Modal */}
-      <PlanTplModal
-        isOpen={planTplModalState.isOpen}
-        plantpl={planTplModalState.plantpl}
-        onClose={() => setPlanTplModalState({ isOpen: false, plantpl: null })}
       />
 
       {/* Delete Project Confirmation Modal */}

@@ -130,6 +130,20 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   const [importMode, setImportMode] = useState<'replace' | 'append' | 'singleSection'>('replace');
   const [selectedSingleSectionId, setSelectedSingleSectionId] = useState<string>('');
 
+  // Plantilla elegida desde el editor ("Usar en proyecto")
+  useEffect(() => {
+    try {
+      const id = sessionStorage.getItem('cci_pending_tpl');
+      if (id) {
+        sessionStorage.removeItem('cci_pending_tpl');
+        setSelectedTemplateToImport(id);
+        setIsImportTemplateModalOpen(true);
+      }
+    } catch {
+      /* sin sessionStorage */
+    }
+  }, []);
+
   // Clear work plan confirmation modal
   const [isClearPlanModalOpen, setIsClearPlanModalOpen] = useState(false);
 
@@ -368,6 +382,31 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   }, [projectTasks]);
 
   // Inline progress update
+  // Suma días a una fecha YYYY-MM-DD usando calendario local (sin pasar por UTC).
+  const addDaysYmd = (ymd: string, days: number): string => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const dt = new Date(y, (m || 1) - 1, (d || 1) + days);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  };
+
+  // Edición directa de fechas en el Plan Detallado: inicio nunca después del fin.
+  const handleInlineDateChange = (task: Task, field: 'start' | 'due', value: string) => {
+    if (!value) return;
+    let start = field === 'start' ? value : task.start;
+    let due = field === 'due' ? value : task.due;
+    if (start && due && start > due) {
+      if (field === 'start') due = start;
+      else start = due;
+    }
+    store.putRecord({
+      ...task,
+      start,
+      due,
+      dueOriginal: task.dueOriginal || task.due || due,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
   const handleInlineProgressChange = (task: Task, progressVal: number) => {
     const p = Math.max(0, Math.min(100, progressVal));
     const isCompleted = p === 100;
@@ -591,9 +630,9 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           owner: act.owner || 'Ingeniero Responsable',
           status: 'Pendiente',
           priority: act.milestone ? 'Alta' : 'Media',
-          start: project.start,
-          due: project.target,
-          dueOriginal: project.target,
+          start: project.start ? addDaysYmd(project.start, act.d0 || 0) : project.start,
+          due: project.start ? addDaysYmd(project.start, Math.max(act.d0 || 0, act.d1 || 0)) : project.target,
+          dueOriginal: project.start ? addDaysYmd(project.start, Math.max(act.d0 || 0, act.d1 || 0)) : project.target,
           progress: 0,
           progressMode: 'auto',
           weight: act.weight || 1,
@@ -647,15 +686,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           owner: act.owner || 'Ingeniero Responsable',
           status: 'Pendiente',
           priority: act.milestone ? 'Alta' : 'Media',
-          start: project.start,
-          due: project.target,
-          dueOriginal: project.target,
+          start: project.start ? addDaysYmd(project.start, act.d0 || 0) : project.start,
+          due: project.start ? addDaysYmd(project.start, Math.max(act.d0 || 0, act.d1 || 0)) : project.target,
+          dueOriginal: project.start ? addDaysYmd(project.start, Math.max(act.d0 || 0, act.d1 || 0)) : project.target,
           progress: 0,
           progressMode: 'auto',
           weight: act.weight || 1,
           milestone: act.milestone || false,
           checklist: act.checklist || [],
           deps: [],
+          guideRef: act.guideTplId,
           createdAt: now,
           updatedAt: now,
         });
@@ -701,15 +741,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
           owner: act.owner || 'Ingeniero Responsable',
           status: 'Pendiente',
           priority: act.milestone ? 'Alta' : 'Media',
-          start: project.start,
-          due: project.target,
-          dueOriginal: project.target,
+          start: project.start ? addDaysYmd(project.start, act.d0 || 0) : project.start,
+          due: project.start ? addDaysYmd(project.start, Math.max(act.d0 || 0, act.d1 || 0)) : project.target,
+          dueOriginal: project.start ? addDaysYmd(project.start, Math.max(act.d0 || 0, act.d1 || 0)) : project.target,
           progress: 0,
           progressMode: 'auto',
           weight: act.weight || 1,
           milestone: act.milestone || false,
           checklist: act.checklist || [],
           deps: [],
+          guideRef: act.guideTplId,
           createdAt: now,
           updatedAt: now,
         });
@@ -2196,7 +2237,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                       onChange={(e) => setVisibleColumns({ ...visibleColumns, duration: e.target.checked })}
                                       className="rounded border-slate-300 text-blue-600 cursor-pointer"
                                     />
-                                    <span>Duración / Estimado</span>
+                                    <span>Fecha de inicio</span>
                                   </label>
                                   <label className="flex items-center gap-2 cursor-pointer py-0.5 text-slate-700 dark:text-neutral-300">
                                     <input
@@ -2214,7 +2255,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                       onChange={(e) => setVisibleColumns({ ...visibleColumns, dates: e.target.checked })}
                                       className="rounded border-slate-300 text-blue-600 cursor-pointer"
                                     />
-                                    <span>Fechas Programadas</span>
+                                    <span>Fecha de fin</span>
                                   </label>
                                   <label className="flex items-center gap-2 cursor-pointer py-0.5 text-slate-700 dark:text-neutral-300">
                                     <input
@@ -2256,10 +2297,10 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                 {visibleColumns.priority && <th className="px-3 py-2.5">Prioridad</th>}
                                 {visibleColumns.owner && <th className="px-3 py-2.5">Responsable</th>}
                                 {visibleColumns.guide && <th className="px-3 py-2.5">Guía Técnica</th>}
-                                {visibleColumns.duration && <th className="px-3 py-2.5 text-center">Duración</th>}
+                                {visibleColumns.duration && <th className="px-3 py-2.5">Inicio</th>}
+                                {visibleColumns.dates && <th className="px-3 py-2.5">Fin</th>}
                                 {visibleColumns.weight && <th className="px-3 py-2.5 text-center">Peso</th>}
-                                {visibleColumns.dates && <th className="px-3 py-2.5">Fechas Programadas</th>}
-                                {visibleColumns.progress && <th className="px-3 py-2.5 text-center">Avance %</th>}
+                                                                {visibleColumns.progress && <th className="px-3 py-2.5 text-center">Avance %</th>}
                                 {visibleColumns.contribution && <th className="px-3 py-2.5 text-right">Aporte</th>}
                                 <th className="px-3 py-2.5 text-right w-36">Acciones</th>
                               </tr>
@@ -2406,10 +2447,30 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                         </td>
                                       )}
 
-                                      {/* Duration / Estimate */}
+                                      {/* Fecha de inicio (editable) */}
                                       {visibleColumns.duration && (
-                                        <td className="px-3 py-2.5 text-center font-mono text-[11px] text-slate-600 dark:text-neutral-400">
-                                          {act.estimate ? `${act.estimate}h` : act.start && act.due ? `${act.start} → ${act.due}` : '—'}
+                                        <td className="px-3 py-2.5">
+                                          <input
+                                            type="date"
+                                            value={act.start || ''}
+                                            onChange={(e) => handleInlineDateChange(act, 'start', e.target.value)}
+                                            aria-label={`Fecha de inicio de ${act.title}`}
+                                            className="bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded px-1.5 py-0.5 font-mono text-[11px] text-slate-700 dark:text-neutral-200 focus:outline-hidden focus:border-blue-500"
+                                          />
+                                        </td>
+                                      )}
+
+                                      {/* Fecha de fin (editable) */}
+                                      {visibleColumns.dates && (
+                                        <td className="px-3 py-2.5">
+                                          <input
+                                            type="date"
+                                            value={act.due || ''}
+                                            min={act.start || undefined}
+                                            onChange={(e) => handleInlineDateChange(act, 'due', e.target.value)}
+                                            aria-label={`Fecha de fin de ${act.title}`}
+                                            className="bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded px-1.5 py-0.5 font-mono text-[11px] text-slate-700 dark:text-neutral-200 focus:outline-hidden focus:border-blue-500"
+                                          />
                                         </td>
                                       )}
 
@@ -2417,13 +2478,6 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                       {visibleColumns.weight && (
                                         <td className="px-3 py-2.5 text-center font-mono text-slate-700 dark:text-neutral-300">
                                           {act.weight}
-                                        </td>
-                                      )}
-
-                                      {/* Scheduled Dates */}
-                                      {visibleColumns.dates && (
-                                        <td className="px-3 py-2.5 text-slate-500 dark:text-neutral-400 font-mono text-[11px]">
-                                          {act.start || '—'} a {act.due || '—'}
                                         </td>
                                       )}
 

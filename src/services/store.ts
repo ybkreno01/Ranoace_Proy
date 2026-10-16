@@ -39,6 +39,7 @@ class Store {
   private isInitialized = false;
   private driveAutoSyncTimeout: any = null;
   private isDriveSyncing = false;
+  private driveSyncQueued = false;
 
   constructor() {
     this.init();
@@ -486,7 +487,11 @@ class Store {
   }
 
   public async autoSyncToGoogleDrive(): Promise<boolean> {
-    if (this.isDriveSyncing) return false;
+    if (this.isDriveSyncing) {
+      // Hay un respaldo en curso: reintenta al terminar para no perder cambios recientes.
+      this.driveSyncQueued = true;
+      return false;
+    }
     const token = await getAccessToken();
     if (!token) {
       this.setDriveStatus('disconnected');
@@ -518,6 +523,10 @@ class Store {
       return false;
     } finally {
       this.isDriveSyncing = false;
+      if (this.driveSyncQueued) {
+        this.driveSyncQueued = false;
+        this.scheduleGoogleDriveAutoSync();
+      }
     }
   }
 

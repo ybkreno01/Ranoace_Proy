@@ -34,7 +34,11 @@ Todo es un registro con `id`, `kind`, `createdAt`, `updatedAt` y `deletedAt` opc
 - **Borrado lógico:** `deleteRecord` marca `deletedAt` (Papelera). Al borrar un proyecto, sus hijos (`projectId`) se marcan con `deletedWith`; al restaurarlo, se restauran solo los hijos con ese `deletedWith`. El borrado permanente también elimina el registro en Firestore.
 - **Clonar proyecto:** `handleCloneProject` (`App.tsx`) duplica el proyecto, sus tareas y sus `pguide`, y remapea `guideRef`, `stepRef`, `Section.guideTplId` y `deps` al clon. El clon nunca apunta a guías ni tareas del origen.
 - **Fechas:** las vistas Mi trabajo, Kanban y Planeación diaria usan fecha local (no `toISOString()`, que usa UTC).
-- **Planeación diaria:** captura rápida con Enter y lista de tareas de proyecto que vencen hoy o ya vencieron.
+- **Planeación diaria:** captura rápida con Enter y lista de tareas de proyecto que vencen hoy o ya vencieron. Dos paneles: "Pendientes" (reordenables) y "Terminadas" (se restauran desmarcando; "Enviar a papelera" las limpia).
+- **Plan detallado:** las columnas "Inicio" y "Fin" son selectores de fecha editables en la fila (el inicio nunca pasa del fin).
+- **Plantillas de plan (`plantpl`):** el editor es una página completa (`PlanTplModal.tsx`, se muestra dentro de Biblioteca): tarjeta de encabezado, tarjetas por sección y tabla de actividades editable (día inicio, día fin, días, peso, guía asociada, hito). Se autoguarda 1.5 s después de cada cambio (requiere nombre) y también al salir. "Desde proyecto" importa el plan de un proyecto con fechas relativas a su inicio y sus guías: una `pguide` con `sourceId` se enlaza a su guía maestra; una `pguide` propia se publica como guía maestra nueva. "Usar en proyecto" guarda, abre el proyecto elegido y abre la ventana de aplicar plantilla (`sessionStorage` `cci_pending_tpl`).
+- **Exportar/importar plantillas de plan:** el paquete incluye las guías maestras que referencia (`guideTplId` de secciones y actividades). Al importar como copia, esos ids se remapean.
+- **Aplicar plantilla a un proyecto:** las tareas reciben `start`/`due` calculadas desde `project.start` + `d0`/`d1` (`addDaysYmd`, fecha local); sin fecha de inicio del proyecto se usan las fechas del proyecto.
 - **Avance:** `src/services/businessRules.ts` calcula el avance de pasos, guías, tareas, secciones y proyectos con pesos. Sin secciones, el proyecto promedia sus tareas. Las tareas sin sección se combinan con `otherWeight`.
 
 ## Persistencia y sincronización
@@ -43,7 +47,7 @@ Orden de escritura en `store.ts`:
 
 1. `putRecord` / `putRecords` escriben de inmediato en localStorage (`cci_records_v1_5`, `cci_settings_v1_5`).
 2. Tras 250 ms, `flushSave` envía los cambios pendientes a Firestore si hay sesión.
-3. Después, `scheduleGoogleDriveAutoSync` actualiza `backup-latest.json` en Drive (retardo de 2 s) si existe token de Google.
+3. Después, `scheduleGoogleDriveAutoSync` actualiza `backup-latest.json` en Drive (retardo de 2 s) si existe token de Google. Si llega un cambio mientras una subida está en curso, se marca `driveSyncQueued` y se repite la subida al terminar, para que ningún cambio quede fuera del respaldo.
 
 ### Firestore
 

@@ -67,6 +67,15 @@ export function exportSingleItemAsJson(record: any): void {
     scope = 'trouble';
   } else if (kind === 'plantpl') {
     scope = 'plantilla';
+    // Incluye las guías maestras referenciadas para que la plantilla viaje completa.
+    const all = store.getState().records;
+    const ids = new Set<string>();
+    (record.sections || []).forEach((s: any) => s.guideTplId && ids.add(s.guideTplId));
+    (record.acts || []).forEach((a: any) => a.guideTplId && ids.add(a.guideTplId));
+    const guides = Array.from(ids)
+      .map((id) => all[id])
+      .filter((g: any) => g && g.kind === 'guide' && !g.deletedAt) as AnyRecord[];
+    relatedRecords = [record, ...guides];
   }
 
   const payload: SingleItemPackage = {
@@ -228,6 +237,11 @@ export function commitSingleItemImport(
       if (finalRec.id === idMap[parsed.item.id]) {
         finalPrimaryId = finalRec.id;
         finalRec.name = `${finalRec.name || finalRec.title || 'Copia'} (Copia importada)`;
+      }
+      // Re-mapea las guías referenciadas por una plantilla de plan
+      if (finalRec.kind === 'plantpl') {
+        finalRec.sections = (finalRec.sections || []).map((x: any) => ({ ...x, guideTplId: x.guideTplId && idMap[x.guideTplId] ? idMap[x.guideTplId] : x.guideTplId }));
+        finalRec.acts = (finalRec.acts || []).map((x: any) => ({ ...x, guideTplId: x.guideTplId && idMap[x.guideTplId] ? idMap[x.guideTplId] : x.guideTplId }));
       }
       // Re-map parent project ID if this is a child task/deliverable
       if (finalRec.projectId && idMap[finalRec.projectId]) {
