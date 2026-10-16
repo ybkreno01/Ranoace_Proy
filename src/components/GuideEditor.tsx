@@ -16,7 +16,6 @@ import {
   Eye,
   AlertTriangle,
   Table as TableIcon,
-  Sun,
   X,
   Check,
   Download,
@@ -701,16 +700,16 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
         {guide.sections.map((section, secIdx) => (
           <div
             key={section.id}
-            className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-xs transition-all"
+            className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-sm transition-shadow hover:shadow-md"
           >
-            {/* Section Header exactly as in user reference screenshot */}
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-neutral-800/80 border-b border-slate-200 dark:border-neutral-800">
+            {/* Section header with a clear visual anchor for long guides */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-neutral-800 border-l-4 border-l-blue-600 bg-gradient-to-r from-slate-100 via-blue-50/80 to-white dark:from-neutral-800 dark:via-neutral-800 dark:to-neutral-900">
               <div className="flex items-center gap-3">
                 <span className="text-slate-400 dark:text-neutral-500">
                   <GripVertical className="w-4 h-4" />
                 </span>
-                <span className="text-amber-500">
-                  <Sun className="w-4 h-4" />
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-600 text-[10px] font-bold tracking-wide text-white shadow-sm shadow-blue-600/30">
+                  {String(secIdx + 1).padStart(2, '0')}
                 </span>
                 <h3 className="text-sm font-bold text-slate-800 dark:text-neutral-100 tracking-tight">
                   {section.title}
@@ -719,7 +718,7 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
 
               {/* Section Header Controls */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 dark:text-neutral-400 font-medium px-2 py-0.5 rounded-full bg-slate-200/60 dark:bg-neutral-800">
+                <span className="text-xs text-blue-700 dark:text-blue-300 font-semibold px-2.5 py-1 rounded-full bg-white/80 dark:bg-neutral-900 border border-blue-100 dark:border-blue-900/60">
                   {section.steps.length} pasos
                 </span>
 
