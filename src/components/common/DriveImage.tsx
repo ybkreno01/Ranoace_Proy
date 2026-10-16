@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Cloud, ExternalLink, Maximize2, X, Download, Minus, Plus } from 'lucide-react';
 import { getDriveImageBlobUrl } from '../../services/googleDrive';
 
@@ -31,6 +31,8 @@ export const DriveImage: React.FC<DriveImageProps> = ({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [resizeStart, setResizeStart] = useState<{ x: number; width: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [loadError, setLoadError] = useState<boolean>(false);
 
   const isDrive =
@@ -76,7 +78,7 @@ export const DriveImage: React.FC<DriveImageProps> = ({
   }
 
   return (
-    <div className={`relative group flex flex-col items-center ${className}`} style={{ width: `${widthPct}%`, ...style }}>
+    <div ref={containerRef} className={`relative group flex flex-col items-center ${className}`} style={{ width: `${widthPct}%`, ...style }}>
       {/* Loading Skeleton */}
       {isLoading && (
         <div className="w-full h-48 bg-slate-100 dark:bg-neutral-800 rounded-lg animate-pulse flex flex-col items-center justify-center gap-2 border border-slate-200 dark:border-neutral-700">
@@ -142,6 +144,19 @@ export const DriveImage: React.FC<DriveImageProps> = ({
               <Download className="w-3.5 h-3.5" />
             </a>
           </div>
+          {onWidthChange && (
+            <span
+              className="absolute bottom-1 right-1 h-4 w-4 cursor-nwse-resize rounded-tl bg-slate-900/70"
+              title="Arrastra para cambiar el tamaño de la imagen"
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); setResizeStart({ x: e.clientX, width: widthPct }); }}
+              onPointerMove={(e) => {
+                if (!resizeStart || !containerRef.current?.parentElement) return;
+                const parentWidth = containerRef.current.parentElement.getBoundingClientRect().width;
+                onWidthChange(Math.max(25, Math.min(100, Math.round((resizeStart.width + ((e.clientX - resizeStart.x) / parentWidth) * 100) / 5) * 5)));
+              }}
+              onPointerUp={() => setResizeStart(null)}
+            />
+          )}
         </div>
       )}
 

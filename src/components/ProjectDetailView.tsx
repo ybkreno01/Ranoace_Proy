@@ -720,15 +720,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
   // Sync guides from templates or library
   const handleSyncGuidesFromTemplate = () => {
     let count = 0;
-    sections.forEach((sec) => {
-      if (sec.guideTplId && allGuides[sec.guideTplId]) {
-        const sourceGuide = allGuides[sec.guideTplId];
-        const pGuideId = `pguide-${project.id}-${sourceGuide.id}`;
+    projectGuides.filter((guide) => guide.kind === 'pguide' && guide.sourceId).forEach((guide) => {
+      const sourceGuide = state.records[guide.sourceId!] as Guide | undefined;
+      if (sourceGuide && sourceGuide.kind === 'guide' && !sourceGuide.deletedAt) {
         store.putRecord({
           ...sourceGuide,
-          id: pGuideId,
+          id: guide.id,
           kind: 'pguide',
-          name: `${sourceGuide.name} (${project.name})`,
+          name: guide.name,
           projectId: project.id,
           sourceId: sourceGuide.id,
           sourceVersion: sourceGuide.version,
@@ -737,7 +736,27 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
         count++;
       }
     });
-    showToast(`Guías sincronizadas y actualizadas (${count} asociadas).`);
+    showToast(count ? `Guías actualizadas desde Biblioteca (${count}).` : 'No hay copias de guía para actualizar.');
+  };
+
+  const handleExportProjectGuideAsTemplate = (guide: Guide) => {
+    const name = window.prompt('Nombre para la nueva plantilla:', guide.name.replace(` (${project.name})`, ''))?.trim();
+    if (!name) return;
+    const version = window.prompt('Versión de la plantilla:', guide.version || '1.0')?.trim() || '1.0';
+    const now = new Date().toISOString();
+    store.putRecord({
+      ...guide,
+      id: `guide-${Date.now()}`,
+      kind: 'guide',
+      name,
+      version,
+      projectId: undefined,
+      sourceId: undefined,
+      sourceVersion: undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+    showToast(`La guía se guardó en Biblioteca como plantilla "${name}" v${version}.`);
   };
 
   // Delete / Unlink guide from project
@@ -3156,6 +3175,14 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                   <Plus className="w-3.5 h-3.5" />
                   <span>+ Vincular Guía a este Proyecto</span>
                 </button>
+                <button
+                  onClick={handleSyncGuidesFromTemplate}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 dark:bg-neutral-800 hover:bg-slate-200 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-200 rounded-lg text-xs font-semibold transition-colors shrink-0"
+                  title="Reemplaza las copias del proyecto con la versión actual de Biblioteca"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Actualizar desde Biblioteca</span>
+                </button>
               </div>
 
               {/* Guides Grid */}
@@ -3228,6 +3255,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
+                            {g.kind === 'pguide' && (
+                              <button
+                                onClick={() => handleExportProjectGuideAsTemplate(g)}
+                                className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded transition-colors"
+                                title="Guardar esta versión del proyecto como plantilla en Biblioteca"
+                              >
+                                Crear plantilla
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
