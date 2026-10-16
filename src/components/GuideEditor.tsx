@@ -219,6 +219,19 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
     saveGuide(updatedSections);
   };
 
+  const handleDropStep = (targetSectionIdx: number, targetStepIdx: number) => {
+    if (!draggedStepInfo) return;
+    const { sectionIdx: sourceSectionIdx, stepIdx: sourceStepIdx } = draggedStepInfo;
+    if (sourceSectionIdx === targetSectionIdx && sourceStepIdx === targetStepIdx) return;
+
+    const sections = guide.sections.map((section) => ({ ...section, steps: [...section.steps] }));
+    const [movedStep] = sections[sourceSectionIdx].steps.splice(sourceStepIdx, 1);
+    sections[targetSectionIdx].steps.splice(targetStepIdx, 0, movedStep);
+    saveGuide(sections);
+    setActiveStepId(movedStep.id);
+    setDraggedStepInfo(null);
+  };
+
   const duplicateStep = (sectionId: string, step: GuideStep) => {
     const duplicated: GuideStep = {
       ...step,
@@ -775,11 +788,16 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                   <div
                     key={step.id}
                     onClick={() => setActiveStepId(step.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleDropStep(secIdx, stepIdx);
+                    }}
                     className={`border rounded-xl p-4 transition-all ${
                       activeStepId === step.id
                         ? 'border-blue-400/70 bg-white dark:bg-neutral-900 shadow-sm'
                         : 'border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 hover:border-slate-300 dark:hover:border-neutral-700'
-                    }`}
+                    } ${draggedStepInfo && (draggedStepInfo.sectionIdx !== secIdx || draggedStepInfo.stepIdx !== stepIdx) ? 'ring-1 ring-blue-300/70' : ''}`}
                   >
                     {/* Step Title & Actions Row (Matching Screenshot) */}
                     <div className={`flex items-center justify-between gap-3 mb-3 px-3 py-2.5 -mx-1 rounded-lg border ${
@@ -788,7 +806,17 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                         : 'bg-slate-100/90 border-slate-200 dark:bg-neutral-800/80 dark:border-neutral-700'
                     }`}>
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-slate-400 dark:text-neutral-500 cursor-grab">
+                        <span
+                          draggable
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDraggedStepInfo({ sectionIdx: secIdx, stepIdx });
+                          }}
+                          onDragEnd={() => setDraggedStepInfo(null)}
+                          className="text-slate-400 dark:text-neutral-500 cursor-grab active:cursor-grabbing"
+                          title="Arrastra para reordenar el paso"
+                        >
                           <GripVertical className="w-4 h-4" />
                         </span>
                         {/* Direct Completion Checkbox */}
@@ -952,9 +980,9 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                             {block.type === 'checklist' && (
                               <div className="space-y-1.5 pl-1 pt-1">
                                 {block.items?.map((item) => (
-                                  <label
+                                  <div
                                     key={item.id}
-                                    className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-neutral-300 select-none hover:text-slate-900 dark:hover:text-white"
+                                    className="flex items-center gap-2.5 text-slate-700 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white"
                                   >
                                     <input
                                       type="checkbox"
@@ -964,10 +992,10 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                                       }
                                       className="w-4 h-4 rounded border-slate-300 dark:border-neutral-700 text-cyan-600 focus:ring-0 cursor-pointer"
                                     />
-                                    <span className={item.done ? 'line-through text-slate-400 dark:text-neutral-500' : ''}>
+                                    <span className={`select-text cursor-text ${item.done ? 'line-through text-slate-400 dark:text-neutral-500' : ''}`}>
                                       {item.text}
                                     </span>
-                                  </label>
+                                  </div>
                                 ))}
                               </div>
                             )}

@@ -151,7 +151,7 @@ export const DriveImage: React.FC<DriveImageProps> = ({
       {/* Zoom Modal */}
       {isZoomed && resolvedSrc && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={() => setIsZoomed(false)}
         >
           <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
