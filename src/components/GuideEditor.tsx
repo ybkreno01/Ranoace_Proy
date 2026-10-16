@@ -1006,7 +1006,7 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                                     )}
                                   </button>
                                 </div>
-                                <pre className="text-xs whitespace-pre-wrap break-words select-all overflow-x-auto">{block.code}</pre>
+                                <pre className="text-xs whitespace-pre-wrap break-words overflow-x-auto">{block.code}</pre>
                               </div>
                             )}
 
