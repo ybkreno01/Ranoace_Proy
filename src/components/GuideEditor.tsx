@@ -777,8 +777,8 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                     onClick={() => setActiveStepId(step.id)}
                     className={`border rounded-xl p-4 transition-all ${
                       activeStepId === step.id
-                        ? 'border-cyan-500/60 bg-cyan-500/5 shadow-xs'
-                        : 'border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 hover:border-slate-300 dark:hover:border-neutral-700'
+                        ? 'border-blue-400/70 bg-blue-50/80 shadow-sm'
+                        : 'border-slate-300 dark:border-neutral-800 bg-slate-100/80 dark:bg-neutral-900/50 hover:border-slate-400 dark:hover:border-neutral-700 hover:bg-slate-100'
                     }`}
                   >
                     {/* Step Title & Actions Row (Matching Screenshot) */}

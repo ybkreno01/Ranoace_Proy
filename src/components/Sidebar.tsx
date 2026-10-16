@@ -175,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         className={`hidden md:flex border-r transition-all duration-200 flex-col justify-between shrink-0 z-20 select-none ${
           isCollapsed
             ? 'w-16 bg-slate-900 border-slate-800 shadow-xl shadow-slate-950/10'
-            : 'w-64 border-slate-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/90'
+            : 'w-64 border-slate-200 dark:border-neutral-800 bg-slate-100/95 dark:bg-neutral-900/90'
         }`}
       >
         {/* Navigation items list */}
@@ -197,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'bg-blue-50 dark:bg-cyan-500/10 text-blue-600 dark:text-cyan-400 border border-blue-200 dark:border-cyan-500/20 font-semibold shadow-2xs'
                     : isCollapsed
                       ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200 hover:bg-slate-100 dark:hover:bg-neutral-800/60'
+                      : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200 hover:bg-white/90 dark:hover:bg-neutral-800/60'
                 }`}
                 title={isCollapsed ? item.label : undefined}
               >
@@ -237,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={`w-full flex items-center justify-center p-2 rounded-lg transition-colors cursor-pointer ${
               isCollapsed
                 ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                : 'text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200 hover:bg-slate-100 dark:hover:bg-neutral-800/60'
+                : 'text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200 hover:bg-white/90 dark:hover:bg-neutral-800/60'
             }`}
             title={isCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral a la izquierda'}
           >
