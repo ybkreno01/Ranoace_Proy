@@ -172,10 +172,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Desktop Sidebar (hidden on mobile, visible md:flex) */}
       <aside
-        className={`hidden md:flex border-r transition-all duration-200 flex-col justify-between shrink-0 z-20 select-none ${
-          isCollapsed
-            ? 'w-16 bg-slate-900 border-slate-800 shadow-xl shadow-slate-950/10'
-            : 'w-64 border-slate-200 dark:border-neutral-800 bg-slate-100/95 dark:bg-neutral-900/90'
+        className={`hidden md:flex border-r border-slate-800 bg-slate-900 shadow-xl shadow-slate-950/10 transition-all duration-200 flex-col justify-between shrink-0 z-20 select-none ${
+          isCollapsed ? 'w-16' : 'w-64'
         }`}
       >
         {/* Navigation items list */}
@@ -192,22 +190,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => handleNavClick(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-colors group relative cursor-pointer ${
                   isActive
-                    ? isCollapsed
-                      ? 'bg-blue-600 text-white font-semibold shadow-lg shadow-blue-950/30'
-                      : 'bg-blue-50 dark:bg-cyan-500/10 text-blue-600 dark:text-cyan-400 border border-blue-200 dark:border-cyan-500/20 font-semibold shadow-2xs'
-                    : isCollapsed
-                      ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      : 'text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200 hover:bg-white/90 dark:hover:bg-neutral-800/60'
+                    ? 'bg-blue-600 text-white font-semibold shadow-lg shadow-blue-950/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
                 title={isCollapsed ? item.label : undefined}
               >
                 <Icon
                   className={`w-4 h-4 shrink-0 transition-colors ${
-                    isActive
-                      ? isCollapsed ? 'text-white' : 'text-blue-600 dark:text-cyan-400'
-                      : isCollapsed
-                        ? 'text-slate-400 group-hover:text-white'
-                        : 'text-slate-400 dark:text-neutral-400 group-hover:text-slate-700 dark:group-hover:text-neutral-200'
+                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'
                   }`}
                 />
                 {!isCollapsed && <span className="truncate">{item.label}</span>}
@@ -231,14 +221,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Collapse Toggle Footer */}
-        <div className={`p-3 border-t ${isCollapsed ? 'border-slate-800' : 'border-slate-200 dark:border-neutral-800/80'}`}>
+        <div className="p-3 border-t border-slate-800">
           <button
             onClick={onToggleCollapse}
-            className={`w-full flex items-center justify-center p-2 rounded-lg transition-colors cursor-pointer ${
-              isCollapsed
-                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
-                : 'text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-neutral-200 hover:bg-white/90 dark:hover:bg-neutral-800/60'
-            }`}
+            className="w-full flex items-center justify-center p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             title={isCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral a la izquierda'}
           >
             {isCollapsed ? (

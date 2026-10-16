@@ -777,12 +777,16 @@ export const GuideEditor: React.FC<GuideEditorProps> = ({
                     onClick={() => setActiveStepId(step.id)}
                     className={`border rounded-xl p-4 transition-all ${
                       activeStepId === step.id
-                        ? 'border-blue-400/70 bg-blue-50/80 shadow-sm'
-                        : 'border-slate-300 dark:border-neutral-800 bg-slate-100/80 dark:bg-neutral-900/50 hover:border-slate-400 dark:hover:border-neutral-700 hover:bg-slate-100'
+                        ? 'border-blue-400/70 bg-white dark:bg-neutral-900 shadow-sm'
+                        : 'border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/50 hover:border-slate-300 dark:hover:border-neutral-700'
                     }`}
                   >
                     {/* Step Title & Actions Row (Matching Screenshot) */}
-                    <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-slate-100 dark:border-neutral-800/80">
+                    <div className={`flex items-center justify-between gap-3 mb-3 px-3 py-2.5 -mx-1 rounded-lg border ${
+                      activeStepId === step.id
+                        ? 'bg-blue-50 border-blue-100 dark:bg-blue-950/30 dark:border-blue-900/60'
+                        : 'bg-slate-100/90 border-slate-200 dark:bg-neutral-800/80 dark:border-neutral-700'
+                    }`}>
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span className="text-slate-400 dark:text-neutral-500 cursor-grab">
                           <GripVertical className="w-4 h-4" />
