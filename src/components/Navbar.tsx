@@ -101,7 +101,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         parts.push('Nube: inicia sesión con Google para sincronizar entre equipos');
         warn = true;
       } else {
-        parts.push('Nube: error, se reintentará');
+        const detail = r.errors.find((error) => error.startsWith('Firestore:'))?.replace('Firestore: ', '');
+        parts.push(`Nube: error${detail ? ` (${detail.slice(0, 90)})` : ', se reintentará'}`);
         warn = true;
       }
       if (r.drive === 'ok') {
@@ -113,7 +114,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         parts.push('Drive: sin sesión de Google');
         warn = true;
       } else {
-        parts.push('Drive: error al respaldar');
+        const detail = r.errors.find((error) => error.startsWith('Drive:'))?.replace('Drive: ', '');
+        parts.push(`Drive: error al respaldar${detail ? ` (${detail.slice(0, 90)})` : ''}`);
         warn = true;
       }
       setSyncToast({ text: parts.join(' · '), tone: warn ? 'warn' : 'ok' });

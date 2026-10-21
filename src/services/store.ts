@@ -646,8 +646,10 @@ class Store {
     } catch (err) {
       console.warn('Auto-sync to Google Drive error:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      if (/expirado|requiere permisos/i.test(msg)) {
+      if (/expirado|requiere permisos|invalid credentials|unauthenticated|401|403/i.test(msg)) {
         this.setDriveStatus('expired');
+      } else if (/no hay sesi[oó]n|falta token/i.test(msg)) {
+        this.setDriveStatus('disconnected');
       }
       return false;
     } finally {
@@ -742,7 +744,13 @@ class Store {
         const pull = await this.pullLatestFromGoogleDrive(true);
         report.pulledFromDrive = pull.count;
         const ok = await this.autoSyncToGoogleDrive();
-        report.drive = ok ? 'ok' : this.state.driveStatus === 'expired' ? 'expired' : 'error';
+        report.drive = ok
+          ? 'ok'
+          : this.state.driveStatus === 'expired'
+          ? 'expired'
+          : this.state.driveStatus === 'disconnected'
+          ? 'disconnected'
+          : 'error';
       } catch (err) {
         report.drive = 'error';
         report.errors.push(`Drive: ${err instanceof Error ? err.message : String(err)}`);
