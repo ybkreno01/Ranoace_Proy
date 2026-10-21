@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { htmlToPlainText } from '../services/textUtils';
 import { Search, X, FolderKanban, CheckSquare, BookOpen, Terminal, AlertCircle, Users, ArrowRight, Presentation } from 'lucide-react';
 import { store } from '../services/store';
 import { AnyRecord } from '../types';
@@ -49,10 +50,10 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
           matchText = r.name || r.title;
         }
 
-        const desc = normalize(r.description || r.objective || r.symptom || r.body || '');
+        const desc = normalize(r.description || r.objective || r.symptom || htmlToPlainText(r.body) || '');
         if (desc.includes(q)) {
           score += 5;
-          if (!matchText) matchText = r.description || r.objective || r.symptom || r.body;
+          if (!matchText) matchText = r.description || r.objective || r.symptom || htmlToPlainText(r.body);
         }
 
         // Aliases for brands

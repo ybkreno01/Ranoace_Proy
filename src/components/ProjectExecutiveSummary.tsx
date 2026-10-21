@@ -19,6 +19,7 @@ import { Project, Task, CatalogItem, Section, Note } from '../types';
 import { ProjectCalculationResult } from '../services/businessRules';
 import { store } from '../services/store';
 import { BrandLogo } from './common/BrandLogo';
+import { htmlToPlainText } from '../services/textUtils';
 
 interface ProjectExecutiveSummaryProps {
   project: Project;
@@ -407,7 +408,7 @@ export const ProjectExecutiveSummary: React.FC<ProjectExecutiveSummaryProps> = (
                 </div>
                 {n.body && (
                   <p className="text-slate-600 dark:text-neutral-300 line-clamp-2">
-                    {n.body}
+                    {htmlToPlainText(n.body)}
                   </p>
                 )}
               </div>

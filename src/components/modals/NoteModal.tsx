@@ -1,42 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, FileText } from 'lucide-react';
 import { store } from '../../services/store';
 import { Note, NoteType } from '../../types';
+import { RichTextEditor } from '../common/RichTextEditor';
+
+// Fecha local (no UTC) en formato YYYY-MM-DD
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 interface NoteModalProps {
   isOpen: boolean;
   projectId: string;
+  /** Si se indica, el modal edita esa minuta en lugar de crear una nueva. */
+  note?: Note | null;
   onClose: () => void;
 }
 
-export const NoteModal: React.FC<NoteModalProps> = ({ isOpen, projectId, onClose }) => {
+export const NoteModal: React.FC<NoteModalProps> = ({ isOpen, projectId, note, onClose }) => {
   const [type, setType] = useState<NoteType>('Sesión');
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(todayLocal());
   const [time, setTime] = useState('10:00');
   const [attendees, setAttendees] = useState('');
   const [body, setBody] = useState('');
 
+  useEffect(() => {
+    if (!isOpen) return;
+    if (note) {
+      setType(note.type);
+      setTitle(note.title);
+      setDate(note.date || todayLocal());
+      setTime(note.time || '10:00');
+      setAttendees(note.attendees || '');
+      setBody(note.body || '');
+    } else {
+      setType('Sesión');
+      setTitle('');
+      setDate(todayLocal());
+      setTime('10:00');
+      setAttendees('');
+      setBody('');
+    }
+  }, [isOpen, note]);
+
   if (!isOpen) return null;
+
+  const isEmptyBody = (html: string) => !html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const id = `note-${projectId}-${Date.now()}`;
+    const id = note?.id || `note-${projectId}-${Date.now()}`;
     const now = new Date().toISOString();
 
     const newNote: Note = {
       id,
       kind: 'note',
-      projectId,
+      projectId: note?.projectId || projectId,
       type,
       title: title.trim(),
       date,
       time,
       attendees: attendees.trim(),
-      body: body.trim() ? `<p>${body.trim().replace(/\n/g, '<br/>')}</p>` : '<p>Sin notas registradas.</p>',
-      createdAt: now,
+      body: isEmptyBody(body) ? '<p>Sin notas registradas.</p>' : body,
+      createdAt: note?.createdAt || now,
       updatedAt: now,
     };
 
@@ -46,12 +76,12 @@ export const NoteModal: React.FC<NoteModalProps> = ({ isOpen, projectId, onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-      <div className="w-full max-w-lg bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-neutral-800 bg-slate-50/90 dark:bg-neutral-900/90">
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
             <h3 className="text-base font-semibold text-slate-900 dark:text-neutral-100">
-              Nueva Minuta / Sesión / Acuerdo
+              {note ? 'Editar Minuta / Sesión / Acuerdo' : 'Nueva Minuta / Sesión / Acuerdo'}
             </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 dark:text-neutral-400 hover:text-slate-600 dark:hover:text-white">
@@ -112,12 +142,11 @@ export const NoteModal: React.FC<NoteModalProps> = ({ isOpen, projectId, onClose
 
           <div>
             <label className="text-slate-700 dark:text-neutral-300 block mb-1">Cuerpo / Acuerdos Tomados</label>
-            <textarea
-              rows={4}
+            <RichTextEditor
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={setBody}
+              rows={8}
               placeholder="Puntos discutidos, decisiones tomadas y próximos compromisos..."
-              className="w-full bg-slate-50 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded-lg p-2.5 text-slate-800 dark:text-neutral-200 focus:outline-hidden focus:border-blue-500 dark:focus:border-cyan-500"
             />
           </div>
 
@@ -133,7 +162,7 @@ export const NoteModal: React.FC<NoteModalProps> = ({ isOpen, projectId, onClose
               type="submit"
               className="px-5 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 dark:bg-cyan-600 dark:hover:bg-cyan-500 rounded-lg transition-colors shadow-xs"
             >
-              Guardar Minuta
+              {note ? 'Guardar Cambios' : 'Guardar Minuta'}
             </button>
           </div>
         </form>

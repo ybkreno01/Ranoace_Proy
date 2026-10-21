@@ -63,13 +63,14 @@ import { ConfirmModal } from './modals/ConfirmModal';
 import { ScriptTroubleViewerModal } from './ScriptTroubleViewerModal';
 import { exportSingleItemAsJson } from '../services/singleItemTransfer';
 import { RichTextRenderer } from './common/RichTextRenderer';
+import { htmlToPlainText } from '../services/textUtils';
 import { BrandLogo } from './common/BrandLogo';
 
 interface ProjectDetailViewProps {
   project: Project;
   onBack: () => void;
   onOpenTaskModal: (task?: Task, projectId?: string, sectionId?: string) => void;
-  onOpenNoteModal: (projectId: string) => void;
+  onOpenNoteModal: (projectId: string, note?: Note | null) => void;
   onOpenScriptModal?: (script?: Script | null) => void;
   onOpenTroubleModal?: (trouble?: Trouble | null) => void;
   onOpenProjectModal?: (project: Project) => void;
@@ -2293,7 +2294,7 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                             <thead className="bg-slate-50/50 dark:bg-neutral-900/90 text-slate-500 dark:text-neutral-400 border-b border-slate-200 dark:border-neutral-800">
                               <tr>
                                 <th className="px-3 py-2.5 w-10 text-center">Estado</th>
-                                <th className="px-3 py-2.5">Actividad</th>
+                                <th className="px-3 py-2.5 min-w-[300px]">Actividad</th>
                                 {visibleColumns.priority && <th className="px-3 py-2.5">Prioridad</th>}
                                 {visibleColumns.owner && <th className="px-3 py-2.5">Responsable</th>}
                                 {visibleColumns.guide && <th className="px-3 py-2.5">Guía Técnica</th>}
@@ -2343,12 +2344,12 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                                       </td>
 
                                       {/* Title & Badges */}
-                                      <td className="px-3 py-2.5">
+                                      <td className="px-3 py-2.5 min-w-[300px]">
                                         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                                           <GripVertical className="w-3.5 h-3.5 text-slate-400 dark:text-neutral-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                                           <button
                                             onClick={() => handleOpenTaskDetail(act)}
-                                            className={`font-medium text-left hover:text-blue-600 dark:hover:text-cyan-400 transition-colors flex-1 min-w-0 ${
+                                            className={`font-medium text-[13px] leading-snug text-left hover:text-blue-600 dark:hover:text-cyan-400 transition-colors flex-1 min-w-[180px] ${
                                               isCompleted
                                                 ? 'text-slate-400 dark:text-neutral-500 line-through'
                                                 : 'text-slate-800 dark:text-neutral-200'
@@ -2802,16 +2803,16 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                               </div>
                             )}
 
-                            <p className="text-xs text-slate-600 dark:text-neutral-300 leading-relaxed whitespace-pre-wrap line-clamp-4 pt-1">
-                              {note.body}
-                            </p>
+                            <div className="max-h-40 overflow-y-auto pt-1 pr-1 text-xs text-slate-600 dark:text-neutral-300">
+                              <RichTextRenderer content={note.body} fontSize="xs" />
+                            </div>
                           </div>
 
                           <div className="pt-2 border-t border-slate-100 dark:border-neutral-800 flex items-center justify-between text-xs text-slate-400">
                             <button
                               onClick={() => {
                                 navigator.clipboard.writeText(
-                                  `${note.type}: ${note.title}\nFecha: ${note.date}\n${note.body}`
+                                  `${note.type}: ${note.title}\nFecha: ${note.date}\n${htmlToPlainText(note.body)}`
                                 );
                                 showToast('Minuta copiada al portapapeles.');
                               }}
@@ -2819,6 +2820,15 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({
                             >
                               <Copy className="w-3 h-3" />
                               <span>Copiar</span>
+                            </button>
+
+                            <button
+                              onClick={() => onOpenNoteModal(project.id, note)}
+                              className="text-[11px] text-slate-600 dark:text-neutral-300 hover:underline flex items-center gap-1"
+                              title="Editar minuta"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Editar</span>
                             </button>
 
                             <button

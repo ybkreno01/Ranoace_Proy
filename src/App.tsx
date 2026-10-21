@@ -26,7 +26,7 @@ import { ScriptModal } from './components/modals/ScriptModal';
 import { TroubleModal } from './components/modals/TroubleModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
 import { PlanTplModal } from './components/modals/PlanTplModal';
-import { Project, Task, Guide, Script, Trouble, PlanTpl } from './types';
+import { Project, Task, Guide, Script, Trouble, PlanTpl, Note } from './types';
 import { auth, googleSignIn, subscribeToAuth, testConnection } from './services/firebase';
 
 export default function App() {
@@ -70,6 +70,7 @@ export default function App() {
   const [noteModalState, setNoteModalState] = useState<{
     isOpen: boolean;
     projectId: string;
+    note?: Note | null;
   }>({ isOpen: false, projectId: '' });
 
   const [guideModalState, setGuideModalState] = useState<{
@@ -365,7 +366,7 @@ export default function App() {
                   onOpenTaskModal={(t, pId, sId) =>
                     setTaskModalState({ isOpen: true, task: t, projectId: pId, sectionId: sId })
                   }
-                  onOpenNoteModal={(pId) => setNoteModalState({ isOpen: true, projectId: pId })}
+                  onOpenNoteModal={(pId, n) => setNoteModalState({ isOpen: true, projectId: pId, note: n || null })}
                   onOpenScriptModal={(s) => setScriptModalState({ isOpen: true, script: s })}
                   onOpenTroubleModal={(tr) => setTroubleModalState({ isOpen: true, trouble: tr })}
                   onOpenProjectModal={(p) => setProjectModalState({ isOpen: true, project: p })}
@@ -454,6 +455,7 @@ export default function App() {
       <NoteModal
         isOpen={noteModalState.isOpen}
         projectId={noteModalState.projectId}
+        note={noteModalState.note}
         onClose={() => setNoteModalState({ isOpen: false, projectId: '' })}
       />
 
