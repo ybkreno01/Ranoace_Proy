@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, X, FolderKanban, CheckSquare, BookOpen, Terminal, AlertCircle, Users, ArrowRight } from 'lucide-react';
+import { Search, X, FolderKanban, CheckSquare, BookOpen, Terminal, AlertCircle, Users, ArrowRight, Presentation } from 'lucide-react';
 import { store } from '../services/store';
 import { AnyRecord } from '../types';
 
@@ -102,6 +102,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       case 'guide':
       case 'pguide':
         return <BookOpen className="w-4 h-4 text-amber-400" />;
+      case 'demo':
+        return <Presentation className="w-4 h-4 text-fuchsia-400" />;
       case 'script':
         return <Terminal className="w-4 h-4 text-violet-400" />;
       case 'trouble':
@@ -121,6 +123,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         return 'Guía Técnica';
       case 'pguide':
         return 'Guía de Proyecto';
+      case 'demo':
+        return 'Demo';
       case 'interactive_guide':
         return 'Guía Interactiva';
       case 'script':

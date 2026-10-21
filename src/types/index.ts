@@ -188,7 +188,7 @@ export interface GuideSection {
 
 export interface Guide {
   id: string;
-  kind: 'guide' | 'pguide';
+  kind: 'guide' | 'pguide' | 'demo';
   name: string;
   version: string;
   brandId?: string;

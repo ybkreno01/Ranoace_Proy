@@ -22,6 +22,7 @@ import {
   Play,
   ExternalLink,
   FileJson,
+  Presentation,
 } from 'lucide-react';
 import { store } from '../services/store';
 import { Guide, Script, Trouble, PlanTpl, CatalogItem, InteractiveGuide } from '../types';
@@ -34,7 +35,7 @@ import { exportSingleItemAsJson } from '../services/singleItemTransfer';
 import { SingleItemImportModal } from './modals/SingleItemImportModal';
 
 interface TechnicalLibraryViewProps {
-  onOpenGuideModal: (guide?: Guide | null) => void;
+  onOpenGuideModal: (guide?: Guide | null, kind?: 'guide' | 'demo') => void;
   onOpenScriptModal: (script?: Script | null) => void;
   onOpenTroubleModal: (trouble?: Trouble | null) => void;
   onOpenPlanTplModal?: (plantpl?: PlanTpl | null) => void;
@@ -49,7 +50,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
   initialSelectedGuideId,
 }) => {
   const state = store.getState();
-  const [activeTab, setActiveTab] = useState<'guides' | 'interactive' | 'scripts' | 'trouble' | 'plantpls'>('guides');
+  const [activeTab, setActiveTab] = useState<'guides' | 'demos' | 'interactive' | 'scripts' | 'trouble' | 'plantpls'>('guides');
 
   // Search query
   const [search, setSearch] = useState('');
@@ -87,6 +88,9 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
   const guides = Object.values(state.records).filter(
     (r): r is Guide => r.kind === 'guide' && !r.deletedAt
   );
+  const demos = Object.values(state.records).filter(
+    (r): r is Guide => r.kind === 'demo' && !r.deletedAt
+  );
   const interactiveGuides = Object.values(state.records).filter(
     (r): r is InteractiveGuide => r.kind === 'interactive_guide' && !r.deletedAt
   );
@@ -111,6 +115,9 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
       } else if (rec && (rec.kind === 'guide' || rec.kind === 'pguide')) {
         setActiveGuideId(initialSelectedGuideId);
         setActiveTab('guides');
+      } else if (rec && rec.kind === 'demo') {
+        setActiveGuideId(initialSelectedGuideId);
+        setActiveTab('demos');
       }
     }
   }, [initialSelectedGuideId]);
@@ -123,11 +130,12 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
   // Current list based on active tab
   const currentItems = useMemo(() => {
     if (activeTab === 'guides') return guides;
+    if (activeTab === 'demos') return demos;
     if (activeTab === 'interactive') return interactiveGuides;
     if (activeTab === 'scripts') return scripts;
     if (activeTab === 'trouble') return troubleEntries;
     return plantpls;
-  }, [activeTab, guides, interactiveGuides, scripts, troubleEntries, plantpls]);
+  }, [activeTab, guides, demos, interactiveGuides, scripts, troubleEntries, plantpls]);
 
   // Extract distinct folders for current tab items (Chapter 3.1)
   const availableFolders = useMemo(() => {
@@ -183,6 +191,12 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
       return true;
     });
   }, [currentItems, activeFilter, search, brands]);
+
+  const sortedItems = useMemo(() => {
+    if (activeTab !== 'demos') return filteredItems;
+    const bn = (it: any) => brands.find((b) => b.id === it.brandId)?.name || 'zzz';
+    return [...filteredItems].sort((a: any, b: any) => bn(a).localeCompare(bn(b)) || (a.name || '').localeCompare(b.name || ''));
+  }, [filteredItems, activeTab, brands]);
 
   const activeGuide = activeGuideId ? (state.records[activeGuideId] as Guide) : null;
   const activeInteractiveGuide = activeInteractiveGuideId
@@ -267,7 +281,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
               <button
                 onClick={closeActiveGuide}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-neutral-800 text-slate-600 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white mr-1 transition-colors cursor-pointer"
-                title="Volver al catálogo de guías"
+                title={activeGuide.kind === 'demo' ? 'Volver a Demos' : 'Volver al catálogo de guías'}
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
@@ -278,8 +292,8 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
           </div>
           <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">
             {activeGuide
-              ? `Editor interactivo por bloques (v${activeGuide.version}) · ${activeGuide.product || 'Procedimiento estándar'}`
-              : 'Procedimientos paso a paso, guías interactivas con generación dinámica de comandos, plantillas, scripts y troubleshooting.'}
+              ? `Editor interactivo por bloques (v${activeGuide.version}) · ${activeGuide.product || (activeGuide.kind === 'demo' ? 'Demo' : 'Procedimiento estándar')}`
+              : 'Procedimientos paso a paso, demos por marca, guías interactivas con generación dinámica de comandos, plantillas, scripts y troubleshooting.'}
           </p>
         </div>
 
@@ -304,6 +318,15 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
               >
                 <Plus className="w-4 h-4" />
                 <span>Nueva Guía</span>
+              </button>
+            )}
+            {activeTab === 'demos' && (
+              <button
+                onClick={() => onOpenGuideModal(null, 'demo')}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-500 rounded-lg transition-colors shadow-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nueva Demo</span>
               </button>
             )}
             {activeTab === 'interactive' && (
@@ -401,6 +424,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
               </span>
               {[
                 { id: 'guides', label: 'Guías estándar', count: guides.length, icon: BookOpen, color: 'text-amber-500 dark:text-amber-400' },
+                { id: 'demos', label: 'Demos', count: demos.length, icon: Presentation, color: 'text-fuchsia-500 dark:text-fuchsia-400' },
                 { id: 'interactive', label: 'Guías Interactivas', count: interactiveGuides.length, icon: Sparkles, color: 'text-emerald-500 dark:text-emerald-400', badge: 'Runbook' },
                 { id: 'scripts', label: 'Scripts', count: scripts.length, icon: Terminal, color: 'text-violet-600 dark:text-violet-400' },
                 { id: 'trouble', label: 'Troubleshooting', count: troubleEntries.length, icon: AlertCircle, color: 'text-rose-500 dark:text-rose-400' },
@@ -599,9 +623,19 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
 
             {/* Items Grid / Rows */}
             <div className="space-y-3">
-              {filteredItems.length === 0 ? (
+              {sortedItems.length === 0 ? (
                 <div className="p-12 text-center bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-slate-400 dark:text-neutral-500 text-xs shadow-2xs space-y-2">
                   <p>No se encontraron elementos en esta categoría con los filtros seleccionados.</p>
+                  {activeTab === 'demos' && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenGuideModal(null, 'demo')}
+                      className="px-3 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white rounded-lg text-xs font-bold cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Crear primera demo</span>
+                    </button>
+                  )}
                   {activeTab === 'interactive' && (
                     <button
                       type="button"
@@ -614,15 +648,23 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
                   )}
                 </div>
               ) : (
-                filteredItems.map((item: any) => {
+                sortedItems.map((item: any, idx: number) => {
                   const brand = brands.find((b) => b.id === item.brandId);
                   const brandColor = brand?.color || '#06b6d4';
+                  const prevBrandId = idx > 0 ? (sortedItems[idx - 1] as any).brandId : undefined;
+                  const showBrandHeader = activeTab === 'demos' && (idx === 0 || prevBrandId !== item.brandId);
 
                   return (
+                    <React.Fragment key={item.id}>
+                    {showBrandHeader && (
+                      <div className="flex items-center gap-2 pt-2 text-xs font-bold uppercase tracking-wide" style={{ color: brandColor }}>
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: brandColor }} />
+                        {brand?.name || 'Sin marca'}
+                      </div>
+                    )}
                     <div
-                      key={item.id}
                       onClick={() => {
-                        if (activeTab === 'guides') {
+                        if (activeTab === 'guides' || activeTab === 'demos') {
                           setActiveGuideId(item.id);
                           store.setSelectedGuide(item.id);
                         } else if (activeTab === 'interactive') {
@@ -708,14 +750,14 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
-                        {activeTab === 'guides' && (
+                        {(activeTab === 'guides' || activeTab === 'demos') && (
                           <span className="text-xs text-slate-400 dark:text-neutral-500 font-mono hidden sm:inline">
                             {item.sections?.length || 0} secciones
                           </span>
                         )}
 
                         <div className="flex items-center gap-2 opacity-80 group-hover:opacity-100">
-                          {activeTab === 'guides' && (
+                          {(activeTab === 'guides' || activeTab === 'demos') && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -834,6 +876,7 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
                         </div>
                       </div>
                     </div>
+                    </React.Fragment>
                   );
                 })
               )}
@@ -901,12 +944,17 @@ export const TechnicalLibraryView: React.FC<TechnicalLibraryViewProps> = ({
             ? 'script'
             : activeTab === 'trouble'
             ? 'trouble'
+            : activeTab === 'demos'
+            ? 'demo'
             : 'guide'
         }
         onItemImported={(result) => {
           if (result.kind === 'interactive_guide') {
             setActiveInteractiveGuideId(result.id);
             setActiveTab('interactive');
+          } else if (result.kind === 'demo') {
+            setActiveGuideId(result.id);
+            setActiveTab('demos');
           } else if (result.kind === 'guide') {
             setActiveGuideId(result.id);
             setActiveTab('guides');

@@ -13,6 +13,7 @@ import {
   Tag,
   FileText,
   Calendar,
+  Presentation,
 } from 'lucide-react';
 import { store } from '../services/store';
 import { ConfirmModal } from './modals/ConfirmModal';
@@ -67,6 +68,8 @@ export const TrashView: React.FC = () => {
       case 'guide':
       case 'pguide':
         return { label: 'Guía Técnica', icon: BookOpen, color: 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' };
+      case 'demo':
+        return { label: 'Demo', icon: Presentation, color: 'bg-fuchsia-100 dark:bg-fuchsia-950/80 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-800' };
       case 'interactive_guide':
         return { label: 'Guía Interactiva', icon: Sparkles, color: 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' };
       case 'script':
@@ -150,6 +153,7 @@ export const TrashView: React.FC = () => {
             { id: 'project', label: 'Proyectos' },
             { id: 'task', label: 'Tareas' },
             { id: 'guide', label: 'Guías' },
+            { id: 'demo', label: 'Demos' },
             { id: 'interactive_guide', label: 'Runbooks' },
             { id: 'script', label: 'Scripts' },
             { id: 'trouble', label: 'Trouble' },

@@ -12,7 +12,7 @@
         },
         "kind": {
           "type": "string",
-          "description": "Entity kind: project, task, guide, pguide, script, trouble, plantpl, note, file, client, channel, brand, contact, worktype, tag, hist, settings",
+          "description": "Entity kind: project, task, guide, pguide, demo, interactive_guide, script, trouble, plantpl, note, file, client, channel, brand, contact, worktype, tag, hist, daily_plan, settings",
           "maxLength": 64
         },
         "userId": {

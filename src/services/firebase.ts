@@ -17,6 +17,7 @@ import {
   writeBatch,
   getDocFromServer,
   getDoc,
+  getDocsFromServer,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { AnyRecord } from '../types';
@@ -174,6 +175,77 @@ export function subscribeToAuth(callback: (user: User | null, token: string | nu
 // Max chunk size in characters (~500 KB, safely below Firestore's 1,048,576 byte limit)
 const MAX_CHUNK_SIZE = 500000;
 
+// Reensambla los documentos (incluidos los fragmentados) de una consulta a Firestore
+function assembleRecords(snapshot: any): Record<string, AnyRecord> {
+  const recordsMap: Record<string, AnyRecord> = {};
+  const chunkParts: Record<string, Record<number, string>> = {};
+  const chunkedHeaders: Record<string, any> = {};
+
+  snapshot.forEach((docSnap: any) => {
+    const raw = docSnap.data();
+    if (!raw) return;
+
+    // Is this a chunk part?
+    if (raw.isChunkPart && raw.parentId) {
+      if (!chunkParts[raw.parentId]) {
+        chunkParts[raw.parentId] = {};
+      }
+      chunkParts[raw.parentId][raw.index] = raw.chunkData || '';
+      return;
+    }
+
+    // Is this a chunked main header?
+    if (raw.isChunked) {
+      chunkedHeaders[raw.id] = raw;
+      return;
+    }
+
+    // Regular document
+    if (raw.data) {
+      try {
+        const parsed = JSON.parse(raw.data);
+        recordsMap[parsed.id] = parsed;
+      } catch (e) {
+        console.error('Failed to parse doc data', e);
+      }
+    }
+  });
+
+  // Reassemble chunked documents
+  Object.entries(chunkedHeaders).forEach(([id, header]) => {
+    const parts = chunkParts[id];
+    if (parts) {
+      const totalChunks = header.totalChunks || 0;
+      let assembled = '';
+      let complete = true;
+      for (let i = 0; i < totalChunks; i++) {
+        if (parts[i] === undefined) {
+          complete = false;
+          break;
+        }
+        assembled += parts[i];
+      }
+
+      if (complete && assembled) {
+        try {
+          const parsed = JSON.parse(assembled);
+          recordsMap[id] = parsed;
+        } catch (e) {
+          console.error(`Failed to reassemble chunked doc ${id}`, e);
+        }
+      }
+    }
+  });
+
+  return recordsMap;
+}
+
+/** Lectura única desde el servidor (ignora la caché local); la usa el botón "Guardar ahora". */
+export async function fetchUserRecordsOnce(userId: string): Promise<Record<string, AnyRecord>> {
+  const snap = await getDocsFromServer(collection(db, 'users', userId, 'records'));
+  return assembleRecords(snap);
+}
+
 // Firestore operations for user records with chunking support for large documents
 export function subscribeToUserRecords(
   userId: string,
@@ -186,67 +258,7 @@ export function subscribeToUserRecords(
   return onSnapshot(
     recordsRef,
     (snapshot) => {
-      const recordsMap: Record<string, AnyRecord> = {};
-      const chunkParts: Record<string, Record<number, string>> = {};
-      const chunkedHeaders: Record<string, any> = {};
-
-      snapshot.forEach((docSnap) => {
-        const raw = docSnap.data();
-        if (!raw) return;
-
-        // Is this a chunk part?
-        if (raw.isChunkPart && raw.parentId) {
-          if (!chunkParts[raw.parentId]) {
-            chunkParts[raw.parentId] = {};
-          }
-          chunkParts[raw.parentId][raw.index] = raw.chunkData || '';
-          return;
-        }
-
-        // Is this a chunked main header?
-        if (raw.isChunked) {
-          chunkedHeaders[raw.id] = raw;
-          return;
-        }
-
-        // Regular document
-        if (raw.data) {
-          try {
-            const parsed = JSON.parse(raw.data);
-            recordsMap[parsed.id] = parsed;
-          } catch (e) {
-            console.error('Failed to parse doc data', e);
-          }
-        }
-      });
-
-      // Reassemble chunked documents
-      Object.entries(chunkedHeaders).forEach(([id, header]) => {
-        const parts = chunkParts[id];
-        if (parts) {
-          const totalChunks = header.totalChunks || 0;
-          let assembled = '';
-          let complete = true;
-          for (let i = 0; i < totalChunks; i++) {
-            if (parts[i] === undefined) {
-              complete = false;
-              break;
-            }
-            assembled += parts[i];
-          }
-
-          if (complete && assembled) {
-            try {
-              const parsed = JSON.parse(assembled);
-              recordsMap[id] = parsed;
-            } catch (e) {
-              console.error(`Failed to reassemble chunked doc ${id}`, e);
-            }
-          }
-        }
-      });
-
-      onRecords(recordsMap);
+      onRecords(assembleRecords(snapshot));
     },
     (error) => {
       // No relanzar: una excepción dentro del callback de onSnapshot queda sin capturar.

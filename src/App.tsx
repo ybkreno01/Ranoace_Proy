@@ -75,6 +75,7 @@ export default function App() {
   const [guideModalState, setGuideModalState] = useState<{
     isOpen: boolean;
     guide?: Guide | null;
+    newKind?: 'guide' | 'demo';
   }>({ isOpen: false, guide: null });
 
   const [scriptModalState, setScriptModalState] = useState<{
@@ -178,7 +179,7 @@ export default function App() {
       } else {
         store.setActiveView('my-work');
       }
-    } else if (record.kind === 'guide' || record.kind === 'pguide' || record.kind === 'interactive_guide') {
+    } else if (record.kind === 'guide' || record.kind === 'pguide' || record.kind === 'demo' || record.kind === 'interactive_guide') {
       store.setActiveView('library', null, record.id);
     } else if (record.kind === 'script' || record.kind === 'trouble') {
       store.setActiveView('library');
@@ -402,7 +403,7 @@ export default function App() {
           {currentView === 'library' && (
             <div className={planTplModalState.isOpen ? 'hidden' : ''}>
             <TechnicalLibraryView
-              onOpenGuideModal={(g) => setGuideModalState({ isOpen: true, guide: g })}
+              onOpenGuideModal={(g, kind) => setGuideModalState({ isOpen: true, guide: g, newKind: kind })}
               onOpenScriptModal={(s) => setScriptModalState({ isOpen: true, script: s })}
               onOpenTroubleModal={(tr) => setTroubleModalState({ isOpen: true, trouble: tr })}
               onOpenPlanTplModal={(tpl) => setPlanTplModalState({ isOpen: true, plantpl: tpl })}
@@ -460,6 +461,7 @@ export default function App() {
       <GuideModal
         isOpen={guideModalState.isOpen}
         guide={guideModalState.guide}
+        newKind={guideModalState.newKind}
         onClose={() => setGuideModalState({ isOpen: false, guide: null })}
         onCreated={(g) => store.setActiveView('library', null, g.id)}
       />

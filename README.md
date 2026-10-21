@@ -22,6 +22,7 @@ El despliegue se realiza con Firebase Hosting para el proyecto `ai-studio-applet
 - **Biblioteca técnica:** contiene guías maestras (`kind: guide`) que funcionan como plantillas.
 - **Guías de proyecto:** al asociar una plantilla, se crea una copia privada (`kind: pguide`) con `projectId`, `sourceId` y `sourceVersion`. Editar esa copia no debe cambiar la plantilla.
 - **Actualizar desde Biblioteca:** acción explícita que reemplaza una copia de proyecto con la versión vigente de su plantilla.
+- **Demos:** `kind: demo` usa la misma estructura y el mismo editor que una guía (`Guide`), se organiza por marca en la pestaña Demos de la Biblioteca y no se asocia a proyectos ni entra en el avance. Se exporta e importa como JSON como las guías.
 - **Crear plantilla:** publica una copia enriquecida de un proyecto como una nueva guía maestra con nombre y versión.
 - **Planeación diaria:** pendientes personales `daily_plan`, independientes de los proyectos.
 
@@ -29,7 +30,7 @@ Los registros se manejan desde `src/services/store.ts`; las vistas reaccionan a 
 
 ## Modelo de datos
 
-Todo es un registro con `id`, `kind`, `createdAt`, `updatedAt` y `deletedAt` opcional. Los valores de `kind` están en `AnyRecord` (`src/types/index.ts`): `project`, `task`, `guide`, `pguide`, `interactive_guide`, `script`, `trouble`, `plantpl`, `note`, `file`, `client`, `channel`, `brand`, `contact`, `worktype`, `tag`, `hist`, `daily_plan` y `settings`.
+Todo es un registro con `id`, `kind`, `createdAt`, `updatedAt` y `deletedAt` opcional. Los valores de `kind` están en `AnyRecord` (`src/types/index.ts`): `project`, `task`, `guide`, `pguide`, `demo`, `interactive_guide`, `script`, `trouble`, `plantpl`, `note`, `file`, `client`, `channel`, `brand`, `contact`, `worktype`, `tag`, `hist`, `daily_plan` y `settings`.
 
 - **Borrado lógico:** `deleteRecord` marca `deletedAt` (Papelera). Al borrar un proyecto, sus hijos (`projectId`) se marcan con `deletedWith`; al restaurarlo, se restauran solo los hijos con ese `deletedWith`. El borrado permanente también elimina el registro en Firestore.
 - **Clonar proyecto:** `handleCloneProject` (`App.tsx`) duplica el proyecto, sus tareas y sus `pguide`, y remapea `guideRef`, `stepRef`, `Section.guideTplId` y `deps` al clon. El clon nunca apunta a guías ni tareas del origen.
@@ -48,6 +49,19 @@ Orden de escritura en `store.ts`:
 1. `putRecord` / `putRecords` escriben de inmediato en localStorage (`cci_records_v1_5`, `cci_settings_v1_5`).
 2. Tras 250 ms, `flushSave` envía los cambios pendientes a Firestore si hay sesión.
 3. Después, `scheduleGoogleDriveAutoSync` actualiza `backup-latest.json` en Drive (retardo de 2 s) si existe token de Google. Si llega un cambio mientras una subida está en curso, se marca `driveSyncQueued` y se repite la subida al terminar, para que ningún cambio quede fuera del respaldo.
+
+Reglas de sincronización entre equipos (`store.ts`):
+
+- **Mezcla por `updatedAt` en todos los sentidos.** Ni el respaldo de Drive ni la nube pisan un registro local más nuevo. `reconcileCloud` sube a Firestore lo local que es más nuevo o que la nube no tiene (escrituras fallidas, datos traídos de Drive). Nunca baja la versión de la nube.
+- **Reintento:** si falla una escritura a Firestore (error o 15 s sin respuesta), los ids vuelven a `pendingChanges` y se reintenta a los 15 s.
+- **Antes de subir a Drive** se lee y mezcla el respaldo si es la primera vez en la sesión o si otro equipo lo modificó (`cci_drive_remote_modified` en localStorage). Si la lectura falla, no se sube nada (`drivePullOk`): un error de lectura no equivale a "no hay respaldo".
+- **Datos de ejemplo (semillas) sin modificar** (`isPristineSeed`) no se suben y se descartan cuando la nube o Drive ya tienen datos reales.
+- **Guardar ahora:** el botón de la barra superior llama a `store.syncNow()`: vacía lo pendiente, lee la nube desde el servidor (`fetchUserRecordsOnce`), mezcla, sube lo local más nuevo, mezcla Drive y sube el respaldo. Informa el resultado de la nube y de Drive por separado.
+- **Limitación conocida:** el borrado permanente no se propaga entre equipos (no hay tombstones). Un equipo que nunca vio el borrado puede reponer el registro.
+
+### Fotos y evidencias
+
+Las imágenes nuevas se suben a la carpeta `Fotos y Evidencias` de Drive y el registro solo guarda `gdrive://{ID}`. Sin sesión de Drive se guardan comprimidas en base64 como respaldo temporal. `services/imageMigration.ts` mueve las imágenes base64 que ya existían (campos cuyo valor completo es un data URL de 20 000+ caracteres en `guide`, `pguide`, `demo`, `script` y `trouble`) a Drive: se ejecuta sola en segundo plano tras un respaldo correcto (cada 5 min como máximo) y a mano con "Mover fotos a Drive" en Google Drive y Respaldos > Fotos y Evidencias. El registro solo cambia después de que Drive confirma la subida; las imágenes repetidas se suben una vez (hash SHA-256). El HTML enriquecido no se modifica.
 
 ### Firestore
 

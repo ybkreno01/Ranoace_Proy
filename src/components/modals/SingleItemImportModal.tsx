@@ -13,6 +13,7 @@ import {
   Sparkles,
   ArrowRight,
   Eye,
+  Presentation,
 } from 'lucide-react';
 import {
   parseSingleItemJson,
@@ -23,7 +24,7 @@ import {
 interface SingleItemImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultFilterKind?: 'guide' | 'interactive_guide' | 'script' | 'trouble' | 'project';
+  defaultFilterKind?: 'guide' | 'demo' | 'interactive_guide' | 'script' | 'trouble' | 'project';
   onItemImported?: (result: { kind: string; id: string; name: string }) => void;
 }
 
@@ -95,6 +96,8 @@ export const SingleItemImportModal: React.FC<SingleItemImportModalProps> = ({
         return <Sparkles className="w-5 h-5 text-emerald-500" />;
       case 'guide':
         return <BookOpen className="w-5 h-5 text-amber-500" />;
+      case 'demo':
+        return <Presentation className="w-5 h-5 text-fuchsia-500" />;
       case 'script':
         return <Terminal className="w-5 h-5 text-violet-500" />;
       case 'trouble':

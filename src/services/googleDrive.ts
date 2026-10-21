@@ -251,7 +251,8 @@ export async function getLatestBackupFromDrive(folderId: string): Promise<{ file
     return { file: target, pkg };
   } catch (err) {
     console.warn('Error fetching latest backup from Google Drive:', err);
-    return null;
+    // Se propaga: un error de lectura NO equivale a "no hay respaldo" (evita sobrescribir el respaldo real con datos locales).
+    throw err;
   }
 }
 
@@ -365,6 +366,8 @@ export async function getDriveImageBlobUrl(fileId: string): Promise<string> {
  * Uploads an image file or blob directly to Google Drive 'Fotos y Evidencias' folder.
  * Returns the file ID, Google Drive thumbnail/view link, and gdrive protocol URL.
  */
+let cachedPhotosFolderId: string | null = null;
+
 export async function uploadImageToDrive(
   fileOrBlob: File | Blob,
   customFilename?: string
@@ -380,8 +383,11 @@ export async function uploadImageToDrive(
     throw new Error('No hay sesión de Google activa para subir a Google Drive.');
   }
 
-  const appFolder = await getOrCreateAppFolder();
-  const photosFolderId = await getOrCreatePhotosFolder(appFolder.id);
+  if (!cachedPhotosFolderId) {
+    const appFolder = await getOrCreateAppFolder();
+    cachedPhotosFolderId = await getOrCreatePhotosFolder(appFolder.id);
+  }
+  const photosFolderId = cachedPhotosFolderId;
 
   const timestamp = Date.now();
   const mimeType = fileOrBlob.type || 'image/png';
@@ -428,6 +434,7 @@ export async function uploadImageToDrive(
   );
 
   if (!res.ok) {
+    if (res.status === 404) cachedPhotosFolderId = null;
     if (res.status === 401 || res.status === 403) {
       await setCachedAccessToken(null);
       throw new Error('La autorización de Google Drive ha expirado. Por favor reconecta.');

@@ -4,7 +4,7 @@ import { AnyRecord, Project, Guide, Script, Trouble, InteractiveGuide, PlanTpl }
 export interface SingleItemPackage {
   format: 'CentroControlIngenieria';
   formatVersion: 1;
-  scope: 'guia' | 'interactive_guide' | 'script' | 'trouble' | 'plantilla' | 'proyecto' | 'item';
+  scope: 'guia' | 'demo' | 'interactive_guide' | 'script' | 'trouble' | 'plantilla' | 'proyecto' | 'item';
   exportedAt: string;
   item: AnyRecord;
   records?: AnyRecord[];
@@ -16,7 +16,7 @@ export interface SingleItemPackage {
 
 export interface ParsedSingleItem {
   isValid: boolean;
-  kind: 'guide' | 'interactive_guide' | 'script' | 'trouble' | 'plantpl' | 'project' | 'unknown';
+  kind: 'guide' | 'demo' | 'interactive_guide' | 'script' | 'trouble' | 'plantpl' | 'project' | 'unknown';
   kindLabel: string;
   id: string;
   name: string;
@@ -57,6 +57,8 @@ export function exportSingleItemAsJson(record: any): void {
       (r: any) => r.projectId === record.id && !r.deletedAt
     );
     relatedRecords = [record, ...children];
+  } else if (kind === 'demo') {
+    scope = 'demo';
   } else if (kind === 'guide' || kind === 'pguide') {
     scope = 'guia';
   } else if (kind === 'interactive_guide') {
@@ -175,6 +177,7 @@ export function parseSingleItemJson(rawContent: string): ParsedSingleItem {
 }
 
 function mapKindToStandard(kind: string): ParsedSingleItem['kind'] {
+  if (kind === 'demo') return 'demo';
   if (kind === 'guide' || kind === 'pguide') return 'guide';
   if (kind === 'interactive_guide') return 'interactive_guide';
   if (kind === 'script') return 'script';
@@ -186,6 +189,8 @@ function mapKindToStandard(kind: string): ParsedSingleItem['kind'] {
 
 export function getKindLabel(kind: string): string {
   switch (kind) {
+    case 'demo':
+      return 'Demo';
     case 'guide':
     case 'pguide':
       return 'Guía Técnica';

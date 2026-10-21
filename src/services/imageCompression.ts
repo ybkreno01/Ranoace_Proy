@@ -73,7 +73,7 @@ export async function compressBase64Image(
  * Sanitizes a guide record by compressing all embedded base64 images in its blocks.
  */
 export async function sanitizeGuideImages(guide: any): Promise<any> {
-  if (!guide || (guide.kind !== 'guide' && guide.kind !== 'pguide')) {
+  if (!guide || (guide.kind !== 'guide' && guide.kind !== 'pguide' && guide.kind !== 'demo')) {
     return guide;
   }
 

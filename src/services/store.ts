@@ -7,16 +7,40 @@ import {
   saveBatchRecordsToFirestore,
   deleteRecordFromFirestore,
   subscribeToUserRecords,
+  fetchUserRecordsOnce,
   getAccessToken,
 } from './firebase';
 import {
   getOrCreateAppFolder,
   uploadBackupToDrive,
   getLatestBackupFromDrive,
+  findFileByNameInFolder,
 } from './googleDrive';
+import { findEmbeddedImages, isMigratableRecord, replaceEmbeddedImages, uploadEmbeddedImages } from './imageMigration';
 
 const LOCAL_STORAGE_KEY = 'cci_records_v1_5';
 const LOCAL_SETTINGS_KEY = 'cci_settings_v1_5';
+const DRIVE_REMOTE_MODIFIED_KEY = 'cci_drive_remote_modified';
+
+export interface SyncReport {
+  firestore: 'ok' | 'error' | 'sin-sesion';
+  drive: 'ok' | 'error' | 'expired' | 'disconnected';
+  pulledFromCloud: number;
+  pushedToCloud: number;
+  pulledFromDrive: number;
+  errors: string[];
+}
+
+const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('Tiempo de espera agotado')), ms);
+    p.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); }
+    );
+  });
+
+const updatedMs = (r: any): number => new Date((r && r.updatedAt) || 0).getTime() || 0;
 
 class Store {
   private state: AppState = {
@@ -40,6 +64,12 @@ class Store {
   private driveAutoSyncTimeout: any = null;
   private isDriveSyncing = false;
   private driveSyncQueued = false;
+  private drivePullOk = false;
+  private cloudSnapshot: Record<string, AnyRecord> | null = null;
+  private reconciling = false;
+  private retryTimer: any = null;
+  private isMigratingImages = false;
+  private lastImageMigrationAt = 0;
 
   constructor() {
     this.init();
@@ -138,7 +168,7 @@ class Store {
   private async optimizeStoredGuides() {
     let changed = false;
     for (const [id, record] of Object.entries(this.state.records)) {
-      if (record.kind === 'guide' || record.kind === 'pguide') {
+      if (record.kind === 'guide' || record.kind === 'pguide' || record.kind === 'demo') {
         const raw = JSON.stringify(record);
         if (raw.length > 300000) {
           const sanitized = await sanitizeGuideImages(record);
@@ -206,6 +236,7 @@ class Store {
       this.firestoreUnsubscribe();
       this.firestoreUnsubscribe = null;
     }
+    this.cloudSnapshot = null;
 
     if (userId) {
       // Immediately pull and consume latest data from Google Drive if authorized
@@ -231,6 +262,10 @@ class Store {
                 }
               }
             }
+            // Datos de ejemplo sin modificar que la nube no tiene: no son del usuario, se descartan.
+            for (const id of Object.keys(merged)) {
+              if (!cloudRecords[id] && this.isPristineSeed(merged[id])) delete merged[id];
+            }
             this.state.records = merged;
             if (this.state.records['settings']) {
               this.state.settings = {
@@ -242,12 +277,15 @@ class Store {
             this.state.saveStatus = 'saved';
             this.state.lastSavedAt = new Date().toLocaleTimeString();
             this.notify();
+            this.cloudSnapshot = cloudRecords;
+            this.reconcileCloud(userId).catch((e) => console.warn('Reconciliación con la nube:', e));
           } else {
+            this.cloudSnapshot = {};
             // First time cloud user: sync existing local records up to Firestore
             (async () => {
               const records = { ...this.state.records };
               for (const [id, rec] of Object.entries(records)) {
-                if (rec.kind === 'guide' || rec.kind === 'pguide') {
+                if (rec.kind === 'guide' || rec.kind === 'pguide' || rec.kind === 'demo') {
                   records[id] = await sanitizeGuideImages(rec);
                 }
               }
@@ -434,7 +472,34 @@ class Store {
     this.notify();
   }
 
-  private async flushSave() {
+  private seedStamps: Map<string, string> | null = null;
+
+  /** true si el registro es dato de ejemplo (semilla) que nunca fue modificado por el usuario. */
+  private isPristineSeed(rec: AnyRecord | undefined): boolean {
+    if (!rec) return false;
+    if (!this.seedStamps) {
+      const m = new Map<string, string>();
+      try {
+        Object.values(generateSeedRecords()).forEach((r: any) => r?.id && m.set(r.id, r.updatedAt));
+        m.set(pamSaaSPlantilla.id, (pamSaaSPlantilla as any).updatedAt);
+      } catch {
+        /* sin semillas conocidas */
+      }
+      ['brand-aikido', 'brand-veracode', 'brand-greenradius'].forEach((id) => m.set(id, '2026-10-09T08:00:00.000Z'));
+      this.seedStamps = m;
+    }
+    return this.seedStamps.get(rec.id) === (rec as any).updatedAt && rec.id !== 'settings';
+  }
+
+  private scheduleRetry() {
+    if (this.retryTimer) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (this.pendingChanges.size > 0) this.flushSave().catch(() => {});
+    }, 15000);
+  }
+
+  private async flushSave(): Promise<boolean> {
     this.persistLocal();
 
     const user = auth.currentUser;
@@ -443,7 +508,7 @@ class Store {
       for (const id of Array.from(this.pendingChanges)) {
         let rec = this.state.records[id];
         if (rec) {
-          if (rec.kind === 'guide' || rec.kind === 'pguide') {
+          if (rec.kind === 'guide' || rec.kind === 'pguide' || rec.kind === 'demo') {
             rec = await sanitizeGuideImages(rec);
             this.state.records[id] = rec;
           }
@@ -451,19 +516,27 @@ class Store {
         }
       }
 
+      const ids = recordsToSync.map((r) => r.id);
       this.pendingChanges.clear();
 
-      saveBatchRecordsToFirestore(user.uid, recordsToSync)
-        .then(() => {
-          this.state.saveStatus = 'saved';
-          this.state.lastSavedAt = new Date().toLocaleTimeString();
-          this.notify();
-        })
-        .catch((err) => {
-          console.error('Firestore save batch error', err);
-          this.state.saveStatus = 'error';
-          this.notify();
-        });
+      // El respaldo en Drive se programa sin esperar a Firestore.
+      this.scheduleGoogleDriveAutoSync();
+
+      try {
+        await withTimeout(saveBatchRecordsToFirestore(user.uid, recordsToSync), 15000);
+        this.state.saveStatus = 'saved';
+        this.state.lastSavedAt = new Date().toLocaleTimeString();
+        this.notify();
+        return true;
+      } catch (err) {
+        console.error('Firestore save batch error', err);
+        // No se pierde el cambio: se vuelve a poner en cola y se reintenta.
+        ids.forEach((id) => this.pendingChanges.add(id));
+        this.state.saveStatus = 'error';
+        this.notify();
+        this.scheduleRetry();
+        return false;
+      }
     } else {
       this.pendingChanges.clear();
       this.state.saveStatus = 'saved';
@@ -473,6 +546,35 @@ class Store {
 
     // Schedule automatic Google Drive synchronization in background
     this.scheduleGoogleDriveAutoSync();
+    return true;
+  }
+
+  /**
+   * Mezcla bidireccional con Firestore: sube lo local que es más nuevo o que la nube no tiene
+   * (p. ej. una escritura que falló o datos traídos de Drive). Nunca baja la versión de la nube.
+   */
+  private async reconcileCloud(userId: string): Promise<number> {
+    if (this.reconciling || !this.cloudSnapshot) return 0;
+    this.reconciling = true;
+    try {
+      const cloud = this.cloudSnapshot;
+      const uploads: AnyRecord[] = [];
+      for (const [id, local] of Object.entries(this.state.records)) {
+        if (this.pendingChanges.has(id) || this.isPristineSeed(local)) continue;
+        const c = cloud[id];
+        if (!c) {
+          if (!(local as any).deletedAt) uploads.push(local);
+        } else if (updatedMs(local) > updatedMs(c)) {
+          uploads.push(local);
+        }
+      }
+      if (uploads.length === 0) return 0;
+      await withTimeout(saveBatchRecordsToFirestore(userId, uploads), 30000);
+      uploads.forEach((r) => { if (this.cloudSnapshot) this.cloudSnapshot[r.id] = r; });
+      return uploads.length;
+    } finally {
+      this.reconciling = false;
+    }
   }
 
   private scheduleGoogleDriveAutoSync() {
@@ -501,8 +603,34 @@ class Store {
     try {
       this.isDriveSyncing = true;
       const folder = await getOrCreateAppFolder();
+
+      // Antes de subir, trae lo que otro equipo haya guardado en Drive para no pisarlo con una copia vieja.
+      let remoteChanged = !this.drivePullOk;
+      if (!remoteChanged) {
+        try {
+          const meta = await findFileByNameInFolder(folder.id, 'backup-latest.json');
+          const known = localStorage.getItem(DRIVE_REMOTE_MODIFIED_KEY);
+          remoteChanged = !!meta?.modifiedTime && meta.modifiedTime !== known;
+        } catch {
+          remoteChanged = false;
+        }
+      }
+      if (remoteChanged) {
+        this.isDriveSyncing = false;
+        await this.pullLatestFromGoogleDrive(true);
+        this.isDriveSyncing = true;
+        if (!this.drivePullOk) {
+          throw new Error('No se pudo leer el respaldo de Drive; se omite la subida para no sobrescribirlo.');
+        }
+      }
+
       const pkg = this.generateBackupPackage('respaldo');
-      await uploadBackupToDrive(folder.id, 'backup-latest.json', pkg, 'Último respaldo activo CCI');
+      const uploaded = await uploadBackupToDrive(folder.id, 'backup-latest.json', pkg, 'Último respaldo activo CCI');
+      try {
+        if (uploaded?.modifiedTime) localStorage.setItem(DRIVE_REMOTE_MODIFIED_KEY, uploaded.modifiedTime);
+      } catch {
+        /* sin localStorage */
+      }
 
       this.state.settings = {
         ...this.state.settings,
@@ -513,6 +641,7 @@ class Store {
       this.persistLocal();
       this.state.driveStatus = 'ok';
       this.notify();
+      setTimeout(() => this.maybeAutoMigrateImages(), 1500);
       return true;
     } catch (err) {
       console.warn('Auto-sync to Google Drive error:', err);
@@ -553,7 +682,158 @@ class Store {
     await this.autoSyncToGoogleDrive();
   }
 
+  /**
+   * Guardado manual: fuerza la sincronización completa en ambos sentidos.
+   * 1) Escribe lo pendiente en Firestore. 2) Lee la nube desde el servidor, trae lo más nuevo y sube
+   * lo local más nuevo. 3) Mezcla el respaldo de Drive y sube el respaldo actualizado.
+   */
+  public async syncNow(): Promise<SyncReport> {
+    const report: SyncReport = {
+      firestore: 'sin-sesion',
+      drive: 'disconnected',
+      pulledFromCloud: 0,
+      pushedToCloud: 0,
+      pulledFromDrive: 0,
+      errors: [],
+    };
+    this.persistLocal();
+    this.state.saveStatus = 'saving';
+    this.notify();
+
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        await this.flushSave();
+        const cloud = await withTimeout(fetchUserRecordsOnce(user.uid), 30000);
+        const merged = { ...this.state.records };
+        for (const [id, c] of Object.entries(cloud)) {
+          const l = merged[id];
+          if (!l || updatedMs(c) > updatedMs(l)) {
+            merged[id] = c;
+            report.pulledFromCloud++;
+          }
+        }
+        this.state.records = merged;
+        if (merged['settings']) this.state.settings = { ...this.state.settings, ...(merged['settings'] as Settings) };
+        this.persistLocal();
+        this.cloudSnapshot = cloud;
+        report.pushedToCloud = await this.reconcileCloud(user.uid);
+        report.firestore = 'ok';
+      } catch (err) {
+        report.firestore = 'error';
+        report.errors.push(`Firestore: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    const token = await getAccessToken();
+    if (!token) {
+      report.drive = 'disconnected';
+      this.setDriveStatus('disconnected');
+    } else {
+      if (this.driveAutoSyncTimeout) {
+        clearTimeout(this.driveAutoSyncTimeout);
+        this.driveAutoSyncTimeout = null;
+      }
+      try {
+        const pull = await this.pullLatestFromGoogleDrive(true);
+        report.pulledFromDrive = pull.count;
+        const ok = await this.autoSyncToGoogleDrive();
+        report.drive = ok ? 'ok' : this.state.driveStatus === 'expired' ? 'expired' : 'error';
+      } catch (err) {
+        report.drive = 'error';
+        report.errors.push(`Drive: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    this.state.saveStatus = report.firestore === 'error' ? 'error' : 'saved';
+    this.state.lastSavedAt = new Date().toLocaleTimeString();
+    this.notify();
+    return report;
+  }
+
+  /** Cuenta las fotos incrustadas (base64) que todavía ocupan espacio en la app. */
+  public countEmbeddedImages(): { images: number; records: number; bytes: number } {
+    let images = 0;
+    let records = 0;
+    let bytes = 0;
+    for (const rec of Object.values(this.state.records)) {
+      if (!isMigratableRecord(rec)) continue;
+      const found = findEmbeddedImages(rec);
+      if (found.length > 0) {
+        records++;
+        images += found.length;
+        found.forEach((u) => (bytes += u.length));
+      }
+    }
+    return { images, records, bytes };
+  }
+
+  /**
+   * Mueve las fotos incrustadas en guías, demos, scripts y fichas a la carpeta "Fotos y Evidencias" de
+   * Google Drive y deja en el registro solo la referencia gdrive://ID. El registro se modifica solo
+   * después de que Drive confirma la subida.
+   */
+  public async migrateImagesToDrive(
+    onProgress?: (done: number, total: number) => void
+  ): Promise<{ migrated: number; failed: number; records: number; authError: boolean }> {
+    const result = { migrated: 0, failed: 0, records: 0, authError: false };
+    if (this.isMigratingImages) return result;
+    const token = await getAccessToken();
+    if (!token) {
+      result.authError = true;
+      return result;
+    }
+    this.isMigratingImages = true;
+    try {
+      const targets = Object.values(this.state.records).filter((r) => findEmbeddedImages(r).length > 0);
+      const total = targets.reduce((n, r) => n + findEmbeddedImages(r).length, 0);
+      let done = 0;
+      const cache = new Map<string, string>();
+      for (const rec of targets) {
+        const urls = findEmbeddedImages(rec);
+        const up = await uploadEmbeddedImages(urls, cache, () => {
+          done++;
+          onProgress?.(done, total);
+        });
+        result.failed += up.failed;
+        if (up.map.size > 0) {
+          // Se vuelve a leer el registro: pudo editarse mientras subían las fotos.
+          const latest = this.state.records[rec.id];
+          if (latest) {
+            const { record, replaced } = replaceEmbeddedImages(latest, up.map);
+            if (replaced > 0) {
+              this.putRecord(record);
+              result.migrated += replaced;
+              result.records++;
+            }
+          }
+        }
+        if (up.authError) {
+          result.authError = true;
+          this.setDriveStatus('expired');
+          break;
+        }
+      }
+      return result;
+    } finally {
+      this.isMigratingImages = false;
+      this.lastImageMigrationAt = Date.now();
+    }
+  }
+
+  /** Migración silenciosa en segundo plano cuando Drive está disponible. */
+  private maybeAutoMigrateImages() {
+    if (this.isMigratingImages || Date.now() - this.lastImageMigrationAt < 5 * 60 * 1000) return;
+    if (this.countEmbeddedImages().images === 0) return;
+    this.migrateImagesToDrive().catch((e) => console.warn('Migración de fotos a Drive:', e));
+  }
+
   public async pullLatestFromGoogleDrive(force = false): Promise<{ updated: boolean; count: number }> {
+    this.drivePullOk = false;
     try {
       const token = await getAccessToken();
       if (!token) {
@@ -566,6 +846,7 @@ class Store {
       if (!latest || !latest.pkg || !Array.isArray(latest.pkg.records)) {
         // If drive has no backup yet, push current local state to drive immediately so it is initialized
         console.log('[GoogleDrive] No se encontró respaldo previo en Drive; guardando estado inicial...');
+        this.drivePullOk = true; // confirmado: no existe respaldo (la lectura no falló)
         await this.autoSyncToGoogleDrive();
         return { updated: false, count: 0 };
       }
@@ -595,30 +876,32 @@ class Store {
         } catch {}
 
         const incomingRecords = latest.pkg.records as AnyRecord[];
-        const newRecords: Record<string, AnyRecord> = {};
 
+        // Mezcla por fecha: el respaldo de Drive nunca pisa un registro local o de la nube más nuevo.
+        const merged: Record<string, AnyRecord> = { ...this.state.records };
+        const driveIds = new Set<string>();
+        let fromDrive = 0;
         for (const rec of incomingRecords) {
-          if (rec.id && rec.kind) {
-            newRecords[rec.id] = rec;
+          if (!rec || !rec.id || !rec.kind) continue;
+          driveIds.add(rec.id);
+          const local = merged[rec.id];
+          if (!local || updatedMs(rec) > updatedMs(local)) {
+            merged[rec.id] = rec;
+            fromDrive++;
+          }
+        }
+        // Datos de ejemplo sin modificar que el respaldo no contiene: no son del usuario.
+        if (driveIds.size > 0) {
+          for (const id of Object.keys(merged)) {
+            if (!driveIds.has(id) && this.isPristineSeed(merged[id])) delete merged[id];
           }
         }
 
-        // If there were any non-seed local records modified after the Drive backup timestamp, keep them
-        const driveTime = new Date(driveGeneratedAt || 0).getTime();
-        Object.entries(this.state.records).forEach(([id, rec]) => {
-          if (!newRecords[id] && !id.startsWith('plantpl-') && !id.startsWith('type-')) {
-            const lTime = new Date((rec as any).updatedAt || 0).getTime();
-            if (lTime > driveTime) {
-              newRecords[id] = rec;
-            }
-          }
-        });
-
-        this.state.records = newRecords;
-        if (newRecords['settings']) {
+        this.state.records = merged;
+        if (merged['settings']) {
           this.state.settings = {
             ...this.state.settings,
-            ...(newRecords['settings'] as Settings),
+            ...(merged['settings'] as Settings),
           };
         }
 
@@ -635,15 +918,16 @@ class Store {
         this.state.lastSavedAt = new Date().toLocaleTimeString();
         this.notify();
 
-        // Also save to Firestore if user is authenticated
+        // Lo que Drive aportó y la nube no tiene (o tiene más viejo) se sube vía reconciliación.
         const user = auth.currentUser;
-        if (user) {
-          const allRecs = Object.values(this.state.records);
-          saveBatchRecordsToFirestore(user.uid, allRecs).catch(console.error);
+        if (user && this.cloudSnapshot) {
+          this.reconcileCloud(user.uid).catch((e) => console.warn('Reconciliación tras Drive:', e));
         }
 
-        return { updated: true, count: Object.keys(newRecords).length };
+        this.drivePullOk = true;
+        return { updated: true, count: fromDrive };
       }
+      this.drivePullOk = true;
       return { updated: false, count: 0 };
     } catch (err) {
       console.warn('pullLatestFromGoogleDrive error:', err);

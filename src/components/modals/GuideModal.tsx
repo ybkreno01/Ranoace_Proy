@@ -8,9 +8,12 @@ interface GuideModalProps {
   guide?: Guide | null;
   onClose: () => void;
   onCreated?: (guide: Guide) => void;
+  /** Tipo a crear cuando no se edita una guía existente ('demo' para la sección Demos). */
+  newKind?: 'guide' | 'demo';
 }
 
-export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, onCreated }) => {
+export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, onCreated, newKind = 'guide' }) => {
+  const isDemo = (guide?.kind ?? newKind) === 'demo';
   const state = store.getState();
   const brands = Object.values(state.records).filter(
     (r): r is CatalogItem => r.kind === 'brand' && !r.deletedAt
@@ -59,12 +62,12 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, 
     e.preventDefault();
     if (!name.trim()) return;
 
-    const guideId = guide?.id || `guide-${Math.random().toString(36).substring(2, 8)}`;
+    const guideId = guide?.id || `${isDemo ? 'demo' : 'guide'}-${Math.random().toString(36).substring(2, 8)}`;
     const now = new Date().toISOString();
 
     const newGuide: Guide = {
       id: guideId,
-      kind: 'guide',
+      kind: guide?.kind === 'pguide' ? 'pguide' : isDemo ? 'demo' : 'guide',
       name: name.trim(),
       description: description.trim() || undefined,
       brandId: brandId || brands[0]?.id || undefined,
@@ -74,17 +77,17 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, 
       env: env.trim() || undefined,
       prereqs: prereqs.trim() || undefined,
       reviewDate: reviewDate || undefined,
-      tags: guide?.tags || ['PAM'],
+      tags: guide?.tags || (isDemo ? [] : ['PAM']),
       fav,
       sections: guide?.sections || [
         {
           id: `sec-${Math.random().toString(36).substring(2, 8)}`,
-          title: 'Prerrequisitos y Preparación',
+          title: isDemo ? 'Preparación de la demo' : 'Prerrequisitos y Preparación',
           order: 0,
           steps: [
             {
               id: `step-${Math.random().toString(36).substring(2, 8)}`,
-              title: 'Verificación de accesos y red',
+              title: isDemo ? 'Validar ambiente, accesos y datos de prueba' : 'Verificación de accesos y red',
               evaluable: true,
               weight: 1,
               mode: 'check',
@@ -94,7 +97,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, 
                 {
                   id: `b-${Math.random().toString(36).substring(2, 8)}`,
                   type: 'text',
-                  html: 'Compruebe que el servidor cuenta con salida a internet en el puerto 443.',
+                  html: isDemo ? 'Confirme acceso a la consola, usuarios de demo y conectividad antes de iniciar la presentación.' : 'Compruebe que el servidor cuenta con salida a internet en el puerto 443.',
                 },
               ],
             },
@@ -117,7 +120,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, 
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-amber-500 dark:text-amber-400" />
             <h3 className="text-base font-semibold text-slate-900 dark:text-neutral-100">
-              {guide ? 'Editar Guía Técnica' : 'Nueva Guía Técnica (Biblioteca)'}
+              {isDemo ? (guide ? 'Editar Demo' : 'Nueva Demo (Biblioteca)') : guide ? 'Editar Guía Técnica' : 'Nueva Guía Técnica (Biblioteca)'}
             </h3>
           </div>
           <button onClick={onClose} className="text-slate-400 dark:text-neutral-400 hover:text-slate-600 dark:hover:text-white">
@@ -127,7 +130,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, 
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto text-xs">
           <div>
-            <label className="text-slate-700 dark:text-neutral-300 block mb-1 font-medium">Nombre de la Guía *</label>
+            <label className="text-slate-700 dark:text-neutral-300 block mb-1 font-medium">{isDemo ? 'Nombre de la Demo *' : 'Nombre de la Guía *'}</label>
             <input
               type="text"
               required
@@ -233,7 +236,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({ isOpen, guide, onClose, 
               type="submit"
               className="px-5 py-2 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded-lg transition-colors shadow-xs"
             >
-              {guide ? 'Guardar Cambios' : 'Crear Guía y Abrir Editor'}
+              {guide ? 'Guardar Cambios' : isDemo ? 'Crear Demo y Abrir Editor' : 'Crear Guía y Abrir Editor'}
             </button>
           </div>
         </form>

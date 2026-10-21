@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   HardDriveDownload,
   Cloud,
@@ -43,6 +43,8 @@ export const GoogleDriveBackupsView: React.FC = () => {
   const [isLoadingDrive, setIsLoadingDrive] = useState(false);
   const [isSyncingDrive, setIsSyncingDrive] = useState(false);
   const [driveError, setDriveError] = useState<string | null>(null);
+  const embedded = useMemo(() => store.countEmbeddedImages(), [state.records]);
+  const [migrating, setMigrating] = useState<{ done: number; total: number } | null>(null);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
 
   // Restore confirmation modal
@@ -240,6 +242,27 @@ export const GoogleDriveBackupsView: React.FC = () => {
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  // Mueve las fotos incrustadas en guías/demos/scripts a Drive para liberar espacio en la app
+  const handleMigrateImages = async () => {
+    setDriveError(null);
+    setMigrating({ done: 0, total: embedded.images });
+    try {
+      const res = await store.migrateImagesToDrive((done, total) => setMigrating({ done, total }));
+      if (res.authError && res.migrated === 0) {
+        setDriveError('La autorización de Google Drive no está activa. Reconecta Drive e inténtalo de nuevo.');
+      } else {
+        setSyncSuccessMsg(
+          `${res.migrated} foto(s) movidas a Google Drive${res.failed > 0 ? `; ${res.failed} no se pudieron subir y se conservan en la app` : ''}.`
+        );
+        await loadDriveInfo();
+      }
+    } catch (err: any) {
+      setDriveError(err?.message || 'Error al mover fotos a Google Drive');
+    } finally {
+      setMigrating(null);
+    }
   };
 
   // Upload photo directly to Google Drive 'Fotos y Evidencias'
@@ -531,6 +554,23 @@ export const GoogleDriveBackupsView: React.FC = () => {
             ) : (
               /* Photos & Evidence in Google Drive */
               <div className="space-y-4">
+                {embedded.images > 0 && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3">
+                    <span>
+                      <strong>{embedded.images} foto(s) incrustadas en {embedded.records} guía(s)/ficha(s)</strong> ocupan unos {(embedded.bytes / 1048576).toFixed(1)} MB en la app y en el respaldo. Muévelas a Drive para liberar espacio; en las guías se ven igual.
+                      {migrating && <> Subiendo {migrating.done} de {migrating.total}…</>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleMigrateImages}
+                      disabled={!!migrating || !isDriveAuthorized}
+                      className="px-3 py-1.5 font-semibold text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-lg cursor-pointer"
+                      title={isDriveAuthorized ? 'Sube las fotos a Fotos y Evidencias y deja solo la referencia' : 'Conecta Google Drive primero'}
+                    >
+                      {migrating ? 'Moviendo…' : 'Mover fotos a Drive'}
+                    </button>
+                  </div>
+                )}
                 <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 rounded-lg text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
                   <Cloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>

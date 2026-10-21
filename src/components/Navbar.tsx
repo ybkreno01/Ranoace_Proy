@@ -20,6 +20,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { store } from '../services/store';
 import { googleSignIn, logOut, auth, subscribeToAuth } from '../services/firebase';
@@ -51,6 +52,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [driveToast, setDriveToast] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ text: string; tone: 'ok' | 'warn' } | null>(null);
   const state = store.getState();
 
   useEffect(() => {
@@ -80,6 +83,46 @@ export const Navbar: React.FC<NavbarProps> = ({
       console.error('Login error', err);
     } finally {
       setIsSigningIn(false);
+    }
+  };
+
+  // Guardado manual: sincroniza en ambos sentidos con la nube (Firestore) y con Google Drive
+  const handleManualSave = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const r = await store.syncNow();
+      const parts: string[] = [];
+      let warn = false;
+      if (r.firestore === 'ok') {
+        const moves = [r.pulledFromCloud > 0 ? `${r.pulledFromCloud} recibidos` : '', r.pushedToCloud > 0 ? `${r.pushedToCloud} enviados` : ''].filter(Boolean).join(', ');
+        parts.push(`Nube ✓${moves ? ` (${moves})` : ''}`);
+      } else if (r.firestore === 'sin-sesion') {
+        parts.push('Nube: inicia sesión con Google para sincronizar entre equipos');
+        warn = true;
+      } else {
+        parts.push('Nube: error, se reintentará');
+        warn = true;
+      }
+      if (r.drive === 'ok') {
+        parts.push(`Drive ✓${r.pulledFromDrive > 0 ? ` (${r.pulledFromDrive} traídos)` : ''}`);
+      } else if (r.drive === 'expired') {
+        parts.push('Drive: la autorización venció, reconecta en "Google Drive y Respaldos"');
+        warn = true;
+      } else if (r.drive === 'disconnected') {
+        parts.push('Drive: sin sesión de Google');
+        warn = true;
+      } else {
+        parts.push('Drive: error al respaldar');
+        warn = true;
+      }
+      setSyncToast({ text: parts.join(' · '), tone: warn ? 'warn' : 'ok' });
+    } catch (err) {
+      console.error('Manual save error', err);
+      setSyncToast({ text: 'No se pudo completar el guardado manual.', tone: 'warn' });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncToast(null), 7000);
     }
   };
 
@@ -186,6 +229,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             </>
           )}
         </div>
+
+        {/* Guardado manual */}
+        <button
+          type="button"
+          onClick={handleManualSave}
+          disabled={isSyncing}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/50 border-emerald-300 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-300 disabled:opacity-60"
+          title="Guardar ahora: sincroniza con la nube y con Google Drive, y trae los cambios hechos en otros equipos"
+          aria-label="Guardar ahora"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">{isSyncing ? 'Guardando…' : 'Guardar ahora'}</span>
+        </button>
 
         {/* Google Drive Status Indicator */}
         <button
@@ -336,6 +392,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
       </div>
+
+      {syncToast && (
+        <div
+          role="status"
+          className={`absolute top-16 left-1/2 -translate-x-1/2 z-50 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow-xl flex items-center gap-2 border max-w-[92vw] ${
+            syncToast.tone === 'ok' ? 'bg-emerald-600 border-emerald-400' : 'bg-amber-600 border-amber-400'
+          }`}
+        >
+          <Cloud className="w-4 h-4 text-white shrink-0" />
+          <span>{syncToast.text}</span>
+        </div>
+      )}
 
       {/* Floating Google Drive Sync Toast */}
       {driveToast && (
