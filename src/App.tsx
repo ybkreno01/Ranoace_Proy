@@ -27,7 +27,7 @@ import { TroubleModal } from './components/modals/TroubleModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
 import { PlanTplModal } from './components/modals/PlanTplModal';
 import { Project, Task, Guide, Script, Trouble, PlanTpl, Note } from './types';
-import { auth, googleSignIn, subscribeToAuth, testConnection } from './services/firebase';
+import { auth, googleSignIn, subscribeToAuth } from './services/firebase';
 
 export default function App() {
   const [, setTick] = useState(0);
@@ -38,7 +38,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(Boolean(auth.currentUser));
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [loginError, setLoginError] = useState('');
-  // Modo local: permite usar la app sin iniciar sesión (datos solo en este navegador, sin Firestore ni Drive).
+  // Modo local: permite usar la app sin iniciar sesión (datos solo en este navegador, sin Drive).
   const [isLocalMode, setIsLocalMode] = useState(() => {
     try {
       return localStorage.getItem('cci_local_mode') === '1';
@@ -118,7 +118,6 @@ export default function App() {
   // Subscribe to store updates and pull latest Google Drive state on app launch
   useEffect(() => {
     const unsub = store.subscribe(() => setTick((t) => t + 1));
-    testConnection(); // Mandated initial Firestore connection test
     store.pullLatestFromGoogleDrive().catch((err) =>
       console.warn('Startup Google Drive sync:', err)
     );
@@ -313,7 +312,7 @@ export default function App() {
             Continuar sin conexión
           </button>
           <p className="mt-2 text-xs text-slate-500">
-            Solo local: tus datos quedan en este navegador, sin sincronizar con Firestore ni Drive. Puedes acceder con Google más tarde desde el menú superior.
+            Solo local: tus datos quedan en este navegador, sin sincronizar con Google Drive. Puedes acceder con Google más tarde desde el menú superior.
           </p>
         </section>
       </main>

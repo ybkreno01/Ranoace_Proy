@@ -86,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  // Guardado manual: sincroniza en ambos sentidos con la nube (Firestore) y con Google Drive
+  // Guardado manual: consume y respalda el estado de la cuenta en Google Drive.
   const handleManualSave = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
@@ -94,28 +94,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       const r = await store.syncNow();
       const parts: string[] = [];
       let warn = false;
-      if (r.firestore === 'ok') {
-        const moves = [r.pulledFromCloud > 0 ? `${r.pulledFromCloud} recibidos` : '', r.pushedToCloud > 0 ? `${r.pushedToCloud} enviados` : ''].filter(Boolean).join(', ');
-        parts.push(`Nube ✓${moves ? ` (${moves})` : ''}`);
-      } else if (r.firestore === 'sin-sesion') {
-        parts.push('Nube: inicia sesión con Google para sincronizar entre equipos');
-        warn = true;
-      } else {
-        const detail = r.errors.find((error) => error.startsWith('Firestore:'))?.replace('Firestore: ', '');
-        parts.push(`Nube: error${detail ? ` (${detail.slice(0, 90)})` : ', se reintentará'}`);
-        warn = true;
-      }
       if (r.drive === 'ok') {
-        parts.push(`Drive ✓${r.pulledFromDrive > 0 ? ` (${r.pulledFromDrive} traídos)` : ''}`);
+        parts.push(`Google Drive ✓${r.pulledFromDrive > 0 ? ` (${r.pulledFromDrive} registros cargados)` : ''}`);
       } else if (r.drive === 'expired') {
-        parts.push('Drive: la autorización venció, reconecta en "Google Drive y Respaldos"');
+        parts.push('Google Drive: la autorización venció, reconecta en "Google Drive y Respaldos"');
         warn = true;
       } else if (r.drive === 'disconnected') {
-        parts.push('Drive: sin sesión de Google');
+        parts.push('Google Drive: inicia sesión para sincronizar');
         warn = true;
       } else {
         const detail = r.errors.find((error) => error.startsWith('Drive:'))?.replace('Drive: ', '');
-        parts.push(`Drive: error al respaldar${detail ? ` (${detail.slice(0, 90)})` : ''}`);
+        parts.push(`Google Drive: error al respaldar${detail ? ` (${detail.slice(0, 90)})` : ''}`);
         warn = true;
       }
       setSyncToast({ text: parts.join(' · '), tone: warn ? 'warn' : 'ok' });
@@ -130,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleLogout = async () => {
     try {
-      // 1. Guarantee all pending changes are flushed to localStorage, Firestore and Google Drive
+      // 1. Guarantee all pending changes are flushed to localStorage and Google Drive
       await store.flushPendingSave();
       // 2. Perform sign out - note that all user records and changes remain fully intact in localStorage!
       await logOut();
@@ -238,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClick={handleManualSave}
           disabled={isSyncing}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/50 border-emerald-300 dark:border-emerald-700/80 text-emerald-800 dark:text-emerald-300 disabled:opacity-60"
-          title="Guardar ahora: sincroniza con la nube y con Google Drive, y trae los cambios hechos en otros equipos"
+          title="Guardar ahora: carga y respalda los cambios en tu Google Drive"
           aria-label="Guardar ahora"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
