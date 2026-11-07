@@ -63,6 +63,109 @@ provider.addScope('https://www.googleapis.com/auth/drive.file');
 let cachedAccessToken: string | null = null;
 let isSigningIn = false;
 
+// --- Renovación del permiso de Drive ---------------------------------------------------------
+// El token OAuth que entrega Firebase dura 1 h y no se renueva solo. Google Identity Services
+// (GIS) emite uno nuevo sin pedir datos (prompt vacío) si la cuenta ya autorizó drive.file.
+// requestAccessToken abre una ventana emergente, así que solo se llama dentro de un clic del
+// usuario (si no, el navegador la bloquea): installDriveTokenKeeper lo hace al primer clic
+// cuando el token vence en menos de 10 min.
+const TOKEN_KEY = 'cci_gdrive_access_token';
+const TOKEN_EXP_KEY = 'cci_gdrive_token_exp';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const REFRESH_MARGIN_MS = 10 * 60 * 1000;
+let gisTokenClient: any = null;
+let gisLoading: Promise<void> | null = null;
+let refreshInFlight = false;
+let lastRefreshAttempt = 0;
+const tokenListeners = new Set<() => void>();
+
+function readTokenExpiry(): number {
+  try {
+    return Number(localStorage.getItem(TOKEN_EXP_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function storeToken(token: string, expiresInSec: number) {
+  cachedAccessToken = token;
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(TOKEN_EXP_KEY, String(Date.now() + expiresInSec * 1000));
+  } catch {}
+}
+
+function loadGis(): Promise<void> {
+  if ((window as any).google?.accounts?.oauth2) return Promise.resolve();
+  if (gisLoading) return gisLoading;
+  gisLoading = new Promise<void>((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.onload = () => resolve();
+    s.onerror = () => {
+      gisLoading = null;
+      reject(new Error('No se pudo cargar Google Identity Services'));
+    };
+    document.head.appendChild(s);
+  });
+  return gisLoading;
+}
+
+/** Prepara el cliente GIS por adelantado para poder pedir el token de forma síncrona en un gesto. */
+export async function prepareDriveTokenClient(): Promise<void> {
+  const clientId = (firebaseConfig as any).oAuthClientId;
+  if (!clientId || gisTokenClient) return;
+  await loadGis();
+  gisTokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: DRIVE_SCOPE,
+    callback: (resp: any) => {
+      refreshInFlight = false;
+      if (resp?.access_token) {
+        storeToken(resp.access_token, Number(resp.expires_in) || 3600);
+        tokenListeners.forEach((fn) => fn());
+      }
+    },
+    error_callback: () => {
+      refreshInFlight = false;
+    },
+  });
+}
+
+/** True si hay sesión de Google y el permiso de Drive falta o vence pronto. */
+export function driveTokenNeedsRefresh(): boolean {
+  if (!auth.currentUser) return false;
+  if (!cachedAccessToken && !localStorage.getItem(TOKEN_KEY)) return true;
+  return readTokenExpiry() - Date.now() < REFRESH_MARGIN_MS;
+}
+
+/** Pide un token nuevo sin consentimiento. Debe llamarse dentro de un gesto del usuario. */
+export function refreshDriveTokenFromGesture(): boolean {
+  if (!gisTokenClient || refreshInFlight || isSigningIn) return false;
+  if (Date.now() - lastRefreshAttempt < 60 * 1000) return false;
+  refreshInFlight = true;
+  lastRefreshAttempt = Date.now();
+  gisTokenClient.requestAccessToken({ prompt: '', hint: auth.currentUser?.email || undefined });
+  return true;
+}
+
+/** Se ejecuta cada vez que se obtiene un token nuevo de Drive. */
+export function onDriveTokenRefreshed(fn: () => void): () => void {
+  tokenListeners.add(fn);
+  return () => tokenListeners.delete(fn);
+}
+
+/** Renueva el permiso de Drive en el primer clic cuando está por vencer (no en teclas: la ventana quitaría el foco al escribir). */
+export function installDriveTokenKeeper(): () => void {
+  const handler = () => {
+    if (driveTokenNeedsRefresh()) refreshDriveTokenFromGesture();
+  };
+  window.addEventListener('pointerdown', handler, true);
+  return () => window.removeEventListener('pointerdown', handler, true);
+}
+
 export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
@@ -117,12 +220,10 @@ export async function googleSignIn(forceConsent = false): Promise<{ user: User; 
     if (!credential?.accessToken) {
       throw new Error('No se pudo obtener el token de acceso de Google');
     }
-    cachedAccessToken = credential.accessToken;
-    try {
-      sessionStorage.setItem('cci_gdrive_access_token', credential.accessToken);
-      localStorage.setItem('cci_gdrive_access_token', credential.accessToken);
-    } catch {}
-    return { user: result.user, accessToken: cachedAccessToken };
+    // El token de Firebase dura 1 h; se registra con margen para renovarlo antes.
+    storeToken(credential.accessToken, 55 * 60);
+    prepareDriveTokenClient().catch((e) => console.warn('GIS:', e));
+    return { user: result.user, accessToken: credential.accessToken };
   } catch (error: any) {
     console.error('Google Sign In Error:', error);
     throw error;
@@ -154,6 +255,7 @@ export async function setCachedAccessToken(token: string | null) {
     } else {
       sessionStorage.removeItem('cci_gdrive_access_token');
       localStorage.removeItem('cci_gdrive_access_token');
+      localStorage.removeItem(TOKEN_EXP_KEY);
     }
   } catch {}
 }
@@ -167,6 +269,8 @@ export function subscribeToAuth(callback: (user: User | null, token: string | nu
   return onAuthStateChanged(auth, (user) => {
     if (!user) {
       setCachedAccessToken(null);
+    } else {
+      prepareDriveTokenClient().catch((e) => console.warn('GIS:', e));
     }
     callback(user, cachedAccessToken);
   });

@@ -64,6 +64,7 @@ Las imágenes nuevas se suben a la carpeta `Fotos y Evidencias` de Drive y el re
 ### Google Drive
 
 - Inicio de sesión con Google y el scope `drive.file`.
+- **Renovación del permiso:** el token de Drive dura 1 h. `firebase.ts` registra su vencimiento (`cci_gdrive_token_exp`) y, con Google Identity Services (`oAuthClientId` de `firebase-applet-config.json`, `prompt` vacío), pide uno nuevo sin consentimiento en el primer clic cuando faltan menos de 10 min o ya venció (`installDriveTokenKeeper`; solo en clics porque la ventana emergente requiere un gesto). Al recibirlo, `App.tsx` llama a `autoSyncToGoogleDrive` para subir lo pendiente. La sesión de Firebase persiste en el navegador.
 - Se usa una carpeta propia de la app. `backup-latest.json` es el respaldo activo; `syncToGoogleDrive` además crea `backup-{timestamp}.json`.
 - Al iniciar sesión se ejecuta `pullLatestFromGoogleDrive(true)`, que reemplaza el estado local con el respaldo de Drive. Conserva los registros locales no semilla modificados después de la fecha del respaldo.
 - Antes de reemplazar, se guarda una copia en `localStorage` (`cci_pre_drive_sync_backup`). Antes de importar un paquete, `cci_pre_import_backup`.

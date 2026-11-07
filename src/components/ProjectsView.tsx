@@ -36,7 +36,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   const state = store.getState();
   const projects = store.getProjects();
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('open');
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -95,7 +95,9 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
     return projects.filter((p) => {
       if (workTypeFilter === 'productive' && isPoc(p)) return false;
       if (workTypeFilter === 'poc' && !isPoc(p)) return false;
-      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      if (statusFilter === 'open') {
+        if (p.status === 'Completado') return false;
+      } else if (statusFilter !== 'all' && p.status !== statusFilter) return false;
       if (brandFilter !== 'all' && p.brandId !== brandFilter) return false;
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -181,6 +183,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           onChange={(e) => setStatusFilter(e.target.value)}
           className="text-xs bg-slate-50 dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-neutral-200 focus:outline-hidden focus:border-blue-500 dark:focus:border-cyan-500"
         >
+          <option value="open">Todos menos completados</option>
           <option value="all">Todos los estados</option>
           <option value="Borrador">Borrador</option>
           <option value="Planificado">Planificado</option>

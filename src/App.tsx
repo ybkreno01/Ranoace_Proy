@@ -27,7 +27,13 @@ import { TroubleModal } from './components/modals/TroubleModal';
 import { ConfirmModal } from './components/modals/ConfirmModal';
 import { PlanTplModal } from './components/modals/PlanTplModal';
 import { Project, Task, Guide, Script, Trouble, PlanTpl, Note } from './types';
-import { auth, googleSignIn, subscribeToAuth } from './services/firebase';
+import {
+  auth,
+  googleSignIn,
+  subscribeToAuth,
+  installDriveTokenKeeper,
+  onDriveTokenRefreshed,
+} from './services/firebase';
 
 export default function App() {
   const [, setTick] = useState(0);
@@ -121,8 +127,15 @@ export default function App() {
     store.pullLatestFromGoogleDrive().catch((err) =>
       console.warn('Startup Google Drive sync:', err)
     );
+    // Renueva el permiso de Drive antes de que venza y sube lo pendiente con el token nuevo.
+    const removeKeeper = installDriveTokenKeeper();
+    const offToken = onDriveTokenRefreshed(() => {
+      store.autoSyncToGoogleDrive().catch((err) => console.warn('Drive tras renovar permiso:', err));
+    });
     return () => {
       unsub();
+      removeKeeper();
+      offToken();
     };
   }, []);
 
